@@ -92,11 +92,33 @@
     .grid{grid-template-columns:repeat(auto-fill,minmax(106px,1fr)); gap:12px;}
     .searchbar{margin-bottom:16px;}
     .searchbar input{padding:12px 15px; font-size:16px;} /* 16px évite le zoom auto iOS */
-    .overlay{padding:12px 8px;}
-    .modal-head{padding:16px 14px 12px; gap:12px;}
-    .modal-head img,.modal-head .noposter{width:84px;}
-    .modal-head h2{font-size:18px; padding-right:32px;}
-    .modal-head p{max-height:70px;}
+    /* Fiches en plein écran, façon app native */
+    .overlay{padding:0; align-items:stretch;}
+    .modal{
+      width:100%; max-width:none; min-height:100%; border-radius:0; border:none;
+      animation:slideup .22s ease;
+    }
+    @keyframes slideup{from{transform:translateY(24px); opacity:.5;} to{transform:none; opacity:1;}}
+    .close-x{
+      position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:120;
+      background:var(--surface2);
+    }
+    .modal-head{
+      flex-direction:column; align-items:center; gap:14px;
+      padding:calc(18px + env(safe-area-inset-top)) 16px 12px;
+    }
+    .modal-head img,.modal-head .noposter{width:130px; align-self:center;}
+    .modal-head > div{width:100%; min-width:0;}
+    .modal-head h2{font-size:20px; padding-right:0; text-align:center;}
+    .modal-head .sub{justify-content:center;}
+    .modal-head p{max-height:110px;}
+    /* Boutons d'action : grille pleine largeur, faciles à toucher */
+    .modal-head .modal-actions{
+      display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px;
+    }
+    .modal-head .modal-actions select.status-select{grid-column:1 / -1; padding:11px 12px;}
+    .modal-head .modal-actions .btn{padding:11px 10px; text-align:center;}
+    .modal-head .modal-actions #trailer-slot{display:contents;}
     .modal-body{padding:0 14px 16px;}
     .block{padding:14px;}
     .season-head{padding:12px 14px;}
@@ -241,7 +263,7 @@
   @keyframes pop{from{transform:scale(.97); opacity:0;} to{transform:scale(1); opacity:1;}}
   @media (prefers-reduced-motion: reduce){ .modal{animation:none;} .card:hover{transform:none;} }
   .modal-head{display:flex; gap:18px; padding:22px 22px 14px;}
-  .modal-head img,.modal-head .noposter{width:110px; border-radius:10px; aspect-ratio:2/3; object-fit:cover; background:var(--surface2); flex-shrink:0;}
+  .modal-head img,.modal-head .noposter{width:110px; border-radius:10px; aspect-ratio:2/3; object-fit:cover; background:var(--surface2); flex-shrink:0; align-self:flex-start;}
   .modal-head h2{font-family:'Bricolage Grotesque',sans-serif; font-size:21px; font-weight:800; line-height:1.2; padding-right:36px;}
   .modal-head .sub{color:var(--muted); font-size:13px; margin-top:4px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
   .modal-head p{font-size:13px; color:var(--muted); margin-top:10px; max-height:88px; overflow:auto;}
