@@ -1,0 +1,1932 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CinéLog — Séries & Films</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0f13; --surface:#171922; --surface2:#1f2230;
+    --text:#ededf2; --muted:#8b8e9c; --line:#2a2d3a;
+    --accent:#8b7cff; --accent-soft:rgba(139,124,255,.14);
+    --ok:#5ad48a; --warn:#ffb454; --danger:#ff6b6b;
+    --radius:14px;
+  }
+  body[data-mode="movies"]{ --accent:#ffb454; --accent-soft:rgba(255,180,84,.13); }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Sora',sans-serif; font-size:15px; line-height:1.5;
+  }
+  button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
+  input,select,textarea{font-family:inherit;}
+  ::selection{background:var(--accent); color:#0e0f13;}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky; top:0; z-index:50;
+    background:rgba(14,15,19,.85); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  .header-inner{
+    max-width:1100px; margin:0 auto; padding:12px 20px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .wordmark{
+    font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:21px;
+    letter-spacing:-.02em;
+  }
+  .wordmark .slash{color:var(--accent); font-weight:400; transition:color .3s;}
+  .swap-btn{
+    display:flex; align-items:center; gap:8px; border-radius:12px; padding:9px 16px;
+    font-weight:700; font-size:14px; background:var(--accent); border:1px solid var(--accent);
+    color:#0e0f13; transition:all .25s; flex-shrink:0;
+  }
+  .swap-btn .swap-arrows{font-size:15px; opacity:.75;}
+  .tabs{display:flex; gap:3px; background:var(--surface); border:1px solid var(--line); border-radius:99px; padding:4px; flex-wrap:wrap;}
+  .tab{
+    padding:6px 14px; border-radius:99px; font-size:13.5px; font-weight:600; color:var(--muted);
+    transition:all .2s;
+  }
+  .tab.active{background:var(--accent); color:#0e0f13;}
+  .header-actions{margin-left:auto; display:flex; gap:8px;}
+  .icon-btn{
+    width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
+    background:var(--surface); border:1px solid var(--line); color:var(--muted); font-size:16px;
+    transition:all .15s; flex-shrink:0;
+  }
+  .icon-btn:hover{color:var(--text); border-color:var(--accent);}
+  .sync-ind{
+    width:10px; height:10px; border-radius:50%; align-self:center; flex-shrink:0;
+    background:var(--line); transition:background .3s;
+  }
+  .sync-ind.ok{background:var(--ok);}
+  .sync-ind.busy{background:var(--warn); animation:pulse 1s infinite;}
+  .sync-ind.err{background:var(--danger);}
+  @keyframes pulse{50%{opacity:.35;}}
+
+  /* ---------- Layout ---------- */
+  main{max-width:1100px; margin:0 auto; padding:24px 20px 80px;}
+  .searchbar{display:flex; gap:10px; margin-bottom:22px;}
+  .searchbar input{
+    flex:1; padding:13px 18px; border-radius:var(--radius);
+    background:var(--surface); border:1px solid var(--line); color:var(--text); font-size:15px;
+    outline:none; transition:border .15s;
+  }
+  .searchbar input:focus{border-color:var(--accent);}
+  .searchbar input::placeholder{color:var(--muted);}
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center;}
+  .toolbar .lbl{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; font-family:'Bricolage Grotesque',sans-serif;}
+
+  .section-label{
+    font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:13px;
+    text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin:26px 0 14px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-label::after{content:""; flex:1; height:1px; background:var(--line);}
+  .count-pill{
+    background:var(--accent-soft); color:var(--accent); border-radius:99px;
+    padding:1px 10px; font-size:12px; letter-spacing:0;
+  }
+
+  /* ---------- Grid & cards ---------- */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(138px,1fr)); gap:16px;}
+  .card{
+    position:relative; border-radius:var(--radius); overflow:hidden; background:var(--surface);
+    border:1px solid var(--line); cursor:pointer; transition:transform .15s, border-color .15s;
+    text-align:left; display:block; width:100%;
+  }
+  .card:hover{transform:translateY(-3px); border-color:var(--accent);}
+  .card img{width:100%; aspect-ratio:2/3; object-fit:cover; display:block; background:var(--surface2);}
+  .noposter{
+    width:100%; aspect-ratio:2/3; display:grid; place-items:center; padding:10px;
+    font-family:'Bricolage Grotesque',sans-serif; font-weight:600; text-align:center;
+    color:var(--muted); background:var(--surface2); font-size:13px;
+  }
+  .card .meta{padding:10px 12px 12px;}
+  .card .title{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .card .sub{font-size:11.5px; color:var(--muted); margin-top:2px; display:flex; gap:6px; align-items:center;}
+  .progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(0,0,0,.5);}
+  .progress > div{height:100%; background:var(--accent); transition:width .3s;}
+  .badge{
+    position:absolute; top:8px; right:8px; background:rgba(14,15,19,.85); backdrop-filter:blur(4px);
+    border-radius:8px; padding:3px 8px; font-size:11px; font-weight:600; color:var(--accent);
+    border:1px solid var(--line);
+  }
+  .badge.done{color:var(--ok);}
+  .fav-dot{
+    position:absolute; top:8px; left:8px; background:rgba(14,15,19,.85); border-radius:8px;
+    padding:2px 6px; font-size:12px; border:1px solid var(--line);
+  }
+  .stars-mini{color:var(--warn); font-size:10.5px; letter-spacing:-1px;}
+
+  .empty{
+    border:1px dashed var(--line); border-radius:var(--radius); padding:36px 24px;
+    text-align:center; color:var(--muted); font-size:14px;
+  }
+  .empty strong{color:var(--text); font-family:'Bricolage Grotesque',sans-serif; display:block; margin-bottom:6px; font-size:17px;}
+
+  /* ---------- Strips (Découvrir) ---------- */
+  .strip{display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scrollbar-width:thin;}
+  .strip .card{flex:0 0 118px;}
+  .strip .card .meta{padding:8px 10px 10px;}
+  .result-add{
+    position:absolute; top:8px; left:8px; background:var(--accent); color:#0e0f13;
+    border-radius:8px; width:26px; height:26px; display:grid; place-items:center; font-size:16px; font-weight:600;
+  }
+  .result-seen{
+    position:absolute; top:40px; left:8px; background:rgba(14,15,19,.9); color:var(--ok);
+    border:1px solid var(--ok); border-radius:8px; width:26px; height:26px;
+    display:grid; place-items:center; font-size:13px; font-weight:700;
+  }
+  .result-seen:hover{background:var(--ok); color:#0e0f13;}
+
+  /* ---------- Rows (Agenda / En cours) ---------- */
+  .agenda-row{
+    display:flex; align-items:center; gap:14px; padding:12px; border-radius:var(--radius);
+    background:var(--surface); border:1px solid var(--line); margin-bottom:10px; cursor:pointer;
+    transition:border-color .15s;
+  }
+  .agenda-row:hover{border-color:var(--accent);}
+  .agenda-row img{width:46px; aspect-ratio:2/3; object-fit:cover; border-radius:8px; background:var(--surface2);}
+  .agenda-row .info{flex:1; min-width:0;}
+  .agenda-row .show{font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .agenda-row .ep{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .countdown{text-align:right; flex-shrink:0;}
+  .countdown .when{font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:16px; color:var(--accent);}
+  .countdown .date{font-size:11.5px; color:var(--muted);}
+  .status-chip{
+    display:inline-block; border-radius:7px; padding:1px 8px; font-size:11px; font-weight:600;
+    background:var(--surface2); border:1px solid var(--line); color:var(--muted);
+  }
+  .status-chip.ok{color:var(--ok); border-color:rgba(90,212,138,.4);}
+  .status-chip.warn{color:var(--warn); border-color:rgba(255,180,84,.4);}
+  .status-chip.bad{color:var(--danger); border-color:rgba(255,107,107,.4);}
+  .next-check{
+    width:42px; height:42px; border-radius:12px; border:1.5px solid var(--accent);
+    color:var(--accent); font-size:17px; display:grid; place-items:center; flex-shrink:0;
+    transition:all .15s;
+  }
+  .next-check:hover{background:var(--accent); color:#0e0f13;}
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(8,9,12,.75); backdrop-filter:blur(6px);
+    z-index:100; display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:30px 16px;
+  }
+  .overlay.open{display:flex;}
+  .modal{
+    background:var(--surface); border:1px solid var(--line); border-radius:20px;
+    max-width:680px; width:100%; overflow:hidden; animation:pop .18s ease; position:relative;
+  }
+  @keyframes pop{from{transform:scale(.97); opacity:0;} to{transform:scale(1); opacity:1;}}
+  @media (prefers-reduced-motion: reduce){ .modal{animation:none;} .card:hover{transform:none;} }
+  .modal-head{display:flex; gap:18px; padding:22px 22px 14px;}
+  .modal-head img,.modal-head .noposter{width:110px; border-radius:10px; aspect-ratio:2/3; object-fit:cover; background:var(--surface2); flex-shrink:0;}
+  .modal-head h2{font-family:'Bricolage Grotesque',sans-serif; font-size:21px; font-weight:800; line-height:1.2; padding-right:36px;}
+  .modal-head .sub{color:var(--muted); font-size:13px; margin-top:4px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .modal-head p{font-size:13px; color:var(--muted); margin-top:10px; max-height:88px; overflow:auto;}
+  .modal-body{padding:0 22px 22px;}
+  .modal-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:center;}
+  .btn{
+    padding:9px 16px; border-radius:11px; font-weight:600; font-size:13.5px;
+    background:var(--accent); color:#0e0f13; transition:filter .15s;
+  }
+  .btn:hover{filter:brightness(1.1);}
+  .btn.ghost{background:var(--surface2); color:var(--text); border:1px solid var(--line);}
+  .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--danger);}
+  .btn.heart{background:transparent; border:1px solid var(--line); font-size:16px; padding:7px 12px;}
+  .btn.heart.on{border-color:#ff8fb8; color:#ff8fb8;}
+  .close-x{position:absolute; top:14px; right:14px; z-index:2;}
+
+  .block{border-top:1px solid var(--line); padding:16px 22px;}
+  .block h4{
+    font-family:'Bricolage Grotesque',sans-serif; font-size:12px; text-transform:uppercase;
+    letter-spacing:.13em; color:var(--muted); margin-bottom:10px;
+  }
+  .stars{display:flex; gap:4px; font-size:24px; color:var(--line); cursor:pointer; user-select:none;}
+  .stars span{transition:color .1s;}
+  .stars span.on{color:var(--warn);}
+  textarea.review{
+    width:100%; background:var(--surface2); border:1px solid var(--line); border-radius:10px;
+    color:var(--text); padding:10px 13px; font-size:13.5px; min-height:70px; resize:vertical; outline:none;
+  }
+  textarea.review:focus{border-color:var(--accent);}
+  .providers{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .providers img{width:38px; height:38px; border-radius:9px;}
+  .providers .none{color:var(--muted); font-size:13px;}
+  .cast{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px;}
+  .cast .person{flex:0 0 66px; text-align:center;}
+  .cast img,.cast .noface{width:56px; height:56px; border-radius:50%; object-fit:cover; background:var(--surface2); margin:0 auto 5px; display:grid; place-items:center; color:var(--muted); font-size:18px;}
+  .cast .pname{font-size:11px; font-weight:600; line-height:1.25;}
+  .cast .prole{font-size:10px; color:var(--muted); line-height:1.25;}
+  .reco-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:10px;}
+  .reco-grid .card .meta{padding:7px 9px 9px;}
+  .reco-grid .card .title{font-size:11.5px;}
+
+  .season{border-top:1px solid var(--line);}
+  .season-head{
+    width:100%; display:flex; align-items:center; gap:12px; padding:12px 22px;
+    font-weight:600; font-size:14px; transition:background .15s;
+  }
+  .season-head:hover{background:var(--surface2);}
+  .season-head .spct{margin-left:auto; color:var(--muted); font-size:12.5px; font-weight:400;}
+  .season-head .chev{color:var(--muted); transition:transform .2s;}
+  .season.open .chev{transform:rotate(90deg);}
+  .ep-list{display:none; padding:4px 22px 14px;}
+  .season.open .ep-list{display:block;}
+  .ep{
+    display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:9px;
+    font-size:13.5px; transition:background .1s;
+  }
+  .ep:hover{background:var(--surface2);}
+  .ep .clickable{display:flex; align-items:center; gap:10px; flex:1; min-width:0; cursor:pointer;}
+  .ep .num{color:var(--muted); font-size:12px; width:34px; flex-shrink:0;}
+  .ep .name{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ep.seen .name{color:var(--muted); text-decoration:line-through; text-decoration-color:var(--line);}
+  .check{
+    width:20px; height:20px; border-radius:6px; border:1.5px solid var(--muted);
+    display:grid; place-items:center; flex-shrink:0; font-size:12px; color:transparent; transition:all .12s;
+  }
+  .ep.seen .check{background:var(--accent); border-color:var(--accent); color:#0e0f13;}
+  .upto{color:var(--muted); font-size:14px; padding:2px 7px; border-radius:6px; opacity:.55; flex-shrink:0;}
+  .upto:hover{background:var(--accent-soft); color:var(--accent); opacity:1;}
+  .season-tools{display:flex; gap:8px; padding:2px 10px 8px;}
+  .mini-btn{font-size:12px; color:var(--accent); font-weight:600; padding:4px 8px; border-radius:7px;}
+  .mini-btn:hover{background:var(--accent-soft);}
+  select.status-select{
+    background:var(--surface2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:8px 10px; font-size:13px; outline:none;
+  }
+  .toolbar{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:4px;
+  }
+  .toolbar select{
+    background:var(--surface); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:8px 12px; font-size:13px; outline:none; cursor:pointer;
+  }
+  .toolbar select:focus{border-color:var(--accent);}
+  .toolbar .reset-filters{font-size:12.5px; color:var(--accent); font-weight:600; padding:6px 10px; border-radius:8px;}
+  .toolbar .reset-filters:hover{background:var(--accent-soft);}
+  .toolbar .lbl{font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.08em; margin-left:4px;}
+  .genre-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .rewatch-pill{color:var(--accent); font-size:11px; font-weight:700;}
+
+  /* ---------- Listes ---------- */
+  .list-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; margin-bottom:14px;
+  }
+  .list-card h3{font-family:'Bricolage Grotesque',sans-serif; font-size:17px; display:flex; align-items:center; gap:10px;}
+  .list-card .list-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .list-card .list-head .del{margin-left:auto; color:var(--muted); font-size:13px;}
+  .list-card .list-head .del:hover{color:var(--danger);}
+  .list-items{display:flex; gap:10px; overflow-x:auto; margin-top:12px; padding-bottom:6px;}
+  .list-items .card{flex:0 0 100px;}
+  .list-items .card .meta{padding:7px 9px 9px;}
+  .list-items .card .title{font-size:11.5px;}
+  .list-items .rm{
+    position:absolute; top:6px; right:6px; background:rgba(14,15,19,.85); border:1px solid var(--line);
+    border-radius:7px; width:22px; height:22px; display:grid; place-items:center; font-size:11px; color:var(--muted);
+  }
+  .list-items .rm:hover{color:var(--danger); border-color:var(--danger);}
+  .new-list{display:flex; gap:10px; margin-bottom:20px;}
+  .new-list input{
+    flex:1; padding:11px 15px; border-radius:11px; background:var(--surface);
+    border:1px solid var(--line); color:var(--text); outline:none; font-size:14px;
+  }
+  .new-list input:focus{border-color:var(--accent);}
+  .hidden-note{font-size:11.5px; color:var(--muted); font-family:'Sora';}
+
+  /* ---------- Panels ---------- */
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px; margin-bottom:22px;
+  }
+  .panel h3{font-family:'Bricolage Grotesque',sans-serif; font-size:17px; margin-bottom:6px;}
+  .panel p{color:var(--muted); font-size:13.5px; margin-bottom:14px;}
+  .panel input[type=text],.panel input[type=password]{
+    width:100%; padding:11px 14px; border-radius:10px; background:var(--surface2);
+    border:1px solid var(--line); color:var(--text); font-size:14px; outline:none; margin-bottom:12px;
+  }
+  .panel input:focus{border-color:var(--accent);}
+  .file-drop{
+    border:1.5px dashed var(--line); border-radius:12px; padding:26px; text-align:center;
+    color:var(--muted); font-size:13.5px; cursor:pointer; transition:border-color .15s; margin-bottom:12px;
+  }
+  .file-drop:hover,.file-drop.drag{border-color:var(--accent); color:var(--text);}
+  .import-log{
+    background:var(--surface2); border-radius:10px; padding:12px 14px; font-size:12.5px;
+    max-height:220px; overflow:auto; color:var(--muted); white-space:pre-wrap; display:none; margin-bottom:12px;
+  }
+  .import-log.show{display:block;}
+
+  /* ---------- Setup ---------- */
+  #setup{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  #setup .box{max-width:440px; width:100%;}
+  #setup h1{font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:38px; letter-spacing:-.02em; margin-bottom:8px;}
+  #setup h1 .slash{color:var(--accent); font-weight:400;}
+  #setup .lead{color:var(--muted); margin-bottom:24px; font-size:14.5px;}
+
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    background:var(--surface2); border:1px solid var(--accent); color:var(--text);
+    padding:11px 20px; border-radius:12px; font-size:14px; z-index:200;
+    opacity:0; pointer-events:none; transition:opacity .25s; max-width:90vw; text-align:center;
+  }
+  .toast.show{opacity:1;}
+  .hidden{display:none !important;}
+  .attribution{color:var(--muted); font-size:11.5px; text-align:center; margin-top:40px;}
+  .attribution a{color:var(--accent); text-decoration:none;}
+  .picker{
+    position:fixed; inset:0; z-index:150; background:rgba(8,9,12,.75); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .picker.open{display:flex;}
+  .picker .box{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px; max-width:340px; width:100%;}
+  .picker h4{font-family:'Bricolage Grotesque',sans-serif; margin-bottom:12px;}
+  .picker button.opt{
+    display:block; width:100%; text-align:left; padding:11px 14px; border-radius:10px;
+    background:var(--surface2); border:1px solid var(--line); margin-bottom:8px; font-size:14px;
+  }
+  .picker button.opt:hover{border-color:var(--accent);}
+</style>
+</head>
+<body data-mode="series">
+
+<!-- ============ SETUP ============ -->
+<div id="setup" class="hidden">
+  <div class="box">
+    <h1>Ciné<span class="slash">/</span>Log</h1>
+    <p class="lead">Ton carnet de bord séries & films, propulsé par TMDB. Colle ta clé API (v3) pour commencer — elle reste stockée uniquement dans ton navigateur.</p>
+    <div class="panel" style="margin:0;">
+      <input type="password" id="setup-key" placeholder="Clé API TMDB (v3)" autocomplete="off">
+      <button class="btn" id="setup-save" style="width:100%;">C'est parti</button>
+      <p style="margin:12px 0 0; font-size:12px;">Pas encore de clé ? Compte TMDB → Paramètres → API.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header>
+    <div class="header-inner">
+      <button class="swap-btn" id="swap-btn" title="Basculer entre Séries et Films">
+        <span id="swap-icon">📺</span><span id="swap-label">Séries</span><span class="swap-arrows">⇄</span>
+      </button>
+      <div class="wordmark">Ciné<span class="slash">/</span>Log</div>
+      <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+      <div class="header-actions">
+        <span class="sync-ind" id="sync-ind" title="Synchro désactivée"></span>
+        <button class="icon-btn" id="btn-import" title="Importer / Exporter">⇅</button>
+        <button class="icon-btn" id="btn-settings" title="Réglages">⚙</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="panel hidden" id="import-panel">
+      <h3>Importer depuis TV Time</h3>
+      <p>Dépose ici les fichiers CSV de ton export TV Time (plusieurs à la fois si tu veux). CinéLog détecte les séries, épisodes vus et films, puis les associe à TMDB.</p>
+      <div class="file-drop" id="drop-zone">Glisse tes fichiers .csv ici, ou clique pour choisir</div>
+      <input type="file" id="file-input" accept=".csv,text/csv" multiple class="hidden">
+      <div class="import-log" id="import-log"></div>
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn ghost" id="btn-export-json">Exporter ma sauvegarde (JSON)</button>
+        <button class="btn ghost" id="btn-import-json">Restaurer une sauvegarde JSON</button>
+        <input type="file" id="json-input" accept=".json" class="hidden">
+      </div>
+    </div>
+
+    <div class="panel hidden" id="settings-panel">
+      <h3>Réglages</h3>
+      <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
+      <input type="password" id="settings-key" placeholder="Clé API TMDB">
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn" id="settings-save">Enregistrer</button>
+        <button class="btn danger" id="btn-wipe">Tout effacer</button>
+      </div>
+      <h3 style="margin-top:22px;">Synchro GitHub Gist</h3>
+      <p>Colle un token GitHub avec la seule permission « gist ». Ta bibliothèque sera sauvegardée dans un Gist secret de ton compte et synchronisée entre tes appareils. Le token reste dans ce navigateur.</p>
+      <input type="password" id="settings-gh-token" placeholder="Token GitHub (ghp_…)" autocomplete="off">
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn" id="btn-gh-connect">Connecter</button>
+        <button class="btn ghost" id="btn-gh-sync">↻ Synchroniser maintenant</button>
+        <button class="btn danger" id="btn-gh-disconnect">Déconnecter</button>
+      </div>
+      <p id="gh-status" style="margin:12px 0 0; font-size:12.5px;"></p>
+    </div>
+
+    <div class="searchbar" id="searchbar">
+      <input type="search" id="search-input" placeholder="Chercher une série…" autocomplete="off">
+    </div>
+
+    <div id="search-section" class="hidden">
+      <div class="section-label">Résultats TMDB</div>
+      <div class="grid" id="search-results"></div>
+    </div>
+
+    <div id="library-section"></div>
+
+    <p class="attribution">Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. Données de disponibilité streaming fournies par JustWatch via TMDB.</p>
+  </main>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <button class="icon-btn close-x" id="modal-close">✕</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- ============ PICKER ============ -->
+<div class="picker" id="picker">
+  <div class="box">
+    <h4>Ajouter à une liste</h4>
+    <div id="picker-options"></div>
+    <button class="btn ghost" style="width:100%;" onclick="closePicker()">Annuler</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   CinéLog V3 — deux univers séparés (Séries / Films) reliés par le swap
+   Fichier unique : hébergeable tel quel sur GitHub Pages.
+===================================================================== */
+
+const TMDB = "https://api.themoviedb.org/3";
+const IMG = "https://image.tmdb.org/t/p/w342";
+const IMG_SM = "https://image.tmdb.org/t/p/w185";
+const IMG_LOGO = "https://image.tmdb.org/t/p/w92";
+const LANG = "fr-FR";
+const REGION = "FR";
+const DAY = 86400000;
+
+/* ---------- Stockage hybride ---------- */
+const store = {
+  async get(key){
+    if (typeof window.storage !== "undefined" && window.storage?.get){
+      try{ const r = await window.storage.get(key); return r ? r.value : null; }
+      catch(e){ return null; }
+    }
+    try{ return localStorage.getItem(key); }catch(e){ return null; }
+  },
+  async set(key, value){
+    if (typeof window.storage !== "undefined" && window.storage?.set){
+      try{ await window.storage.set(key, value); return; }catch(e){}
+    }
+    try{ localStorage.setItem(key, value); }catch(e){}
+  }
+};
+
+/* ---------- État ---------- */
+let state = { apiKey:"", shows:{}, movies:{}, lists:{} };
+let mode = "series";          // "series" | "movies" — l'univers courant
+let currentTab = "library";   // "library" | "watching" | "agenda" | "discover" | "lists"
+let searchTimer = null;
+const seasonCache = {};
+const extraCache = {};
+const discoverCache = {};     // {tv:{...}, movie:{...}}
+
+const TABS = {
+  series: [["library","Mes séries"],["watching","En cours"],["agenda","Agenda"],["discover","Découvrir"],["lists","Listes"]],
+  movies: [["library","Mes films"],["agenda","Agenda"],["discover","Découvrir"],["lists","Listes"]]
+};
+
+async function loadState(){
+  const raw = await store.get("cinelog-state");
+  if (raw){ try{ state = Object.assign(state, JSON.parse(raw)); }catch(e){} }
+  if (!state.lists) state.lists = {};
+}
+let saveTimer = null;
+function saveState(){
+  clearTimeout(saveTimer);
+  state.updatedAt = Date.now();
+  saveTimer = setTimeout(()=> {
+    store.set("cinelog-state", JSON.stringify(state));
+    schedulePush(); // synchro Gist automatique (si connectée)
+  }, 300);
+}
+
+/* ---------- Synchro GitHub Gist ---------- */
+const GIST_FILE = "cinelog-data.json";
+let ghToken = "", gistId = "";
+let pushTimer = null, pushing = false, pushQueued = false;
+
+function setSync(cls, title){
+  const el = $("#sync-ind");
+  if (!el) return;
+  el.className = "sync-ind" + (cls ? " " + cls : "");
+  el.title = title || "Synchro désactivée";
+}
+async function ghApi(path, opts={}){
+  const res = await fetch("https://api.github.com" + path, {
+    ...opts,
+    headers: {
+      "Authorization": "Bearer " + ghToken,
+      "Accept": "application/vnd.github+json",
+      ...(opts.body ? {"Content-Type": "application/json"} : {}),
+    }
+  });
+  if (!res.ok) throw new Error("GitHub " + res.status);
+  return res.status === 204 ? null : res.json();
+}
+function gistPayload(){
+  return JSON.stringify({ updatedAt: state.updatedAt || Date.now(), state }, null, 1);
+}
+async function connectGist(token){
+  ghToken = token;
+  // Cherche un Gist CinéLog existant, sinon en crée un (secret)
+  const gists = await ghApi("/gists?per_page=100");
+  const found = (gists || []).find(g => g.files && g.files[GIST_FILE]);
+  if (found){ gistId = found.id; }
+  else {
+    const created = await ghApi("/gists", { method:"POST", body: JSON.stringify({
+      description: "CinéLog — sauvegarde automatique (séries & films)",
+      public: false,
+      files: { [GIST_FILE]: { content: gistPayload() } }
+    })});
+    gistId = created.id;
+  }
+  await store.set("cinelog-gh-token", ghToken);
+  await store.set("cinelog-gist-id", gistId);
+}
+async function pullGist(){
+  const g = await ghApi("/gists/" + gistId);
+  const f = g.files && g.files[GIST_FILE];
+  if (!f) return null;
+  let content = f.content;
+  if (f.truncated){
+    content = await (await fetch(f.raw_url)).text();
+  }
+  try{ return JSON.parse(content); }catch(e){ return null; }
+}
+async function pushGist(){
+  await ghApi("/gists/" + gistId, { method:"PATCH", body: JSON.stringify({
+    files: { [GIST_FILE]: { content: gistPayload() } }
+  })});
+}
+function schedulePush(){
+  if (!ghToken || !gistId) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(doPush, 4000);
+}
+async function doPush(){
+  if (pushing){ pushQueued = true; return; }
+  pushing = true;
+  setSync("busy", "Synchronisation en cours…");
+  try{
+    await pushGist();
+    setSync("ok", "Synchronisé avec GitHub ✓");
+  }catch(e){
+    setSync("err", "Erreur de synchro — vérifie ton token dans ⚙");
+  }
+  pushing = false;
+  if (pushQueued){ pushQueued = false; doPush(); }
+}
+function adoptRemote(remote){
+  // Remplace l'état local par la version distante (plus récente)
+  const keepKey = state.apiKey;
+  state = Object.assign({ apiKey:"", shows:{}, movies:{}, lists:{} }, remote.state || {});
+  if (!state.apiKey) state.apiKey = keepKey;
+  if (!state.lists) state.lists = {};
+  store.set("cinelog-state", JSON.stringify(state)); // sans re-déclencher de push
+}
+async function syncNow(interactive=false){
+  if (!ghToken || !gistId){ if (interactive) toast("Connecte d'abord un token GitHub"); return; }
+  setSync("busy", "Synchronisation en cours…");
+  try{
+    const remote = await pullGist();
+    if (remote && (remote.updatedAt || 0) > (state.updatedAt || 0)){
+      adoptRemote(remote);
+      updateNav(); render();
+      if (interactive) toast("Données récupérées depuis GitHub ✓");
+    } else {
+      await pushGist();
+      if (interactive) toast("Sauvegarde envoyée sur GitHub ✓");
+    }
+    setSync("ok", "Synchronisé avec GitHub ✓");
+    updateGhStatus();
+  }catch(e){
+    setSync("err", "Erreur de synchro");
+    if (interactive) toast("Échec de la synchro — vérifie le token");
+  }
+}
+function updateGhStatus(){
+  const el = $("#gh-status");
+  if (!el) return;
+  if (ghToken && gistId){
+    el.innerHTML = `✓ Connecté — <a href="https://gist.github.com/${gistId}" target="_blank" rel="noopener" style="color:var(--accent);">voir le Gist (et son historique de versions)</a>`;
+    el.style.color = "var(--ok)";
+  } else {
+    el.textContent = "Non connecté — tes données ne vivent que dans ce navigateur.";
+    el.style.color = "var(--muted)";
+  }
+}
+async function loadSyncConfig(){
+  ghToken = (await store.get("cinelog-gh-token")) || "";
+  gistId = (await store.get("cinelog-gist-id")) || "";
+}
+function bindSyncUI(){
+  $("#btn-gh-connect").addEventListener("click", async () => {
+    const token = $("#settings-gh-token").value.trim();
+    if (!token){ toast("Colle ton token GitHub d'abord"); return; }
+    setSync("busy", "Connexion…");
+    try{
+      await connectGist(token);
+      $("#settings-gh-token").value = "";
+      updateGhStatus();
+      await syncNow(true);
+    }catch(e){
+      setSync("err", "Connexion refusée");
+      toast("Token refusé par GitHub — vérifie la permission « gist »");
+    }
+  });
+  $("#btn-gh-sync").addEventListener("click", () => syncNow(true));
+  $("#btn-gh-disconnect").addEventListener("click", async () => {
+    if (!confirm("Déconnecter la synchro ? (le Gist et tes données locales sont conservés)")) return;
+    ghToken = ""; gistId = "";
+    await store.set("cinelog-gh-token", "");
+    await store.set("cinelog-gist-id", "");
+    setSync("", "Synchro désactivée");
+    updateGhStatus();
+  });
+}
+
+/* ---------- Utilitaires ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  setTimeout(()=> t.classList.remove("show"), 2600);
+}
+function year(d){ return d ? d.slice(0,4) : "—"; }
+function fmtDate(d){
+  if (!d) return "";
+  try{ return new Date(d + "T00:00:00").toLocaleDateString("fr-FR", {day:"numeric", month:"short", year:"numeric"}); }
+  catch(e){ return d; }
+}
+function daysUntil(dateStr){
+  const target = new Date(dateStr + "T00:00:00");
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((target - today) / DAY);
+}
+function countdownLabel(days){
+  if (days < 0) return "sorti";
+  if (days === 0) return "aujourd'hui !";
+  if (days === 1) return "demain";
+  if (days < 30) return `dans ${days} j`;
+  if (days < 60) return "dans 1 mois";
+  return `dans ${Math.round(days/30)} mois`;
+}
+function starsHTML(rating){
+  if (!rating) return "";
+  return `<span class="stars-mini">${"★".repeat(rating)}${"☆".repeat(5-rating)}</span>`;
+}
+async function tmdb(path, params={}){
+  const url = new URL(TMDB + path);
+  url.searchParams.set("api_key", state.apiKey);
+  url.searchParams.set("language", LANG);
+  for (const [k,v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("TMDB " + res.status);
+  return res.json();
+}
+function kindOf(){ return mode === "series" ? "tv" : "movie"; }
+
+/* ---------- Progression & statuts ---------- */
+function showProgress(show){
+  let total = 0;
+  for (const [num, s] of Object.entries(show.seasons || {})){
+    if (num === "0") continue;
+    total += s.episode_count || 0;
+  }
+  const seen = Object.keys(show.watched || {}).filter(k => !k.startsWith("s0e")).length;
+  return { seen, total, pct: total ? Math.round(Math.min(seen,total)/total*100) : 0 };
+}
+function effectiveStatus(show){
+  if (show.userStatus === "paused" || show.userStatus === "dropped") return show.userStatus;
+  const p = showProgress(show);
+  if (p.total > 0 && p.seen >= p.total) return "completed";
+  if (p.seen > 0) return "watching";
+  return "planned";
+}
+function tmdbStatusChip(status){
+  if (!status) return "";
+  const map = {
+    "Returning Series": ["En cours de diffusion","ok"],
+    "In Production": ["En production","ok"],
+    "Planned": ["Annoncée","ok"],
+    "Ended": ["Terminée",""],
+    "Canceled": ["Annulée","bad"],
+    "Cancelled": ["Annulée","bad"],
+    "Pilot": ["Pilote",""]
+  };
+  const [label, cls] = map[status] || [status, ""];
+  return `<span class="status-chip ${cls}">${label}</span>`;
+}
+function nextToWatch(s){
+  const nums = Object.keys(s.seasons || {}).map(Number).filter(n => n > 0).sort((a,b)=>a-b);
+  for (const n of nums){
+    for (let e=1; e <= (s.seasons[n].episode_count || 0); e++){
+      if (!s.watched[`s${n}e${e}`]) return { season:n, episode:e };
+    }
+  }
+  return null;
+}
+function lastActivity(s){
+  let max = 0;
+  for (const v of Object.values(s.watched || {})) if (typeof v === "number" && v > max) max = v;
+  return max || s.addedAt || 0;
+}
+function epCode(nx){ return `S${String(nx.season).padStart(2,"0")}E${String(nx.episode).padStart(2,"0")}`; }
+
+/* ---------- Backfill des genres (anciens éléments) ---------- */
+async function backfillGenres(){
+  const missing = [
+    ...Object.values(state.shows).filter(x => !x.genres).map(x => ({type:"tv", obj:x})),
+    ...Object.values(state.movies).filter(x => !x.genres).map(x => ({type:"movie", obj:x}))
+  ];
+  if (!missing.length) return;
+  for (const {type, obj} of missing){
+    try{
+      const d = await tmdb(`/${type}/${obj.id}`);
+      obj.genres = (d.genres || []).map(g => g.name);
+    }catch(e){ obj.genres = []; }
+    await new Promise(r => setTimeout(r, 80));
+  }
+  saveState();
+  if (currentTab === "library") render();
+}
+
+/* ---------- Navigation ---------- */
+function setMode(m){
+  mode = m;
+  document.body.dataset.mode = m;
+  if (mode === "movies" && currentTab === "watching") currentTab = "library";
+  updateNav(); render();
+}
+function setTab(tab){
+  currentTab = tab;
+  $("#search-input").value = "";
+  updateNav(); render();
+}
+function updateNav(){
+  $("#swap-icon").textContent = mode === "series" ? "📺" : "🎬";
+  $("#swap-label").textContent = mode === "series" ? "Séries" : "Films";
+  $("#tabs").innerHTML = TABS[mode].map(([id,label]) =>
+    `<button class="tab ${currentTab===id?"active":""}" data-tab="${id}">${label}</button>`).join("");
+  document.querySelectorAll("#tabs .tab").forEach(t =>
+    t.addEventListener("click", () => setTab(t.dataset.tab)));
+}
+$("#swap-btn").addEventListener("click", () => setMode(mode === "series" ? "movies" : "series"));
+
+/* ---------- Rendu principal ---------- */
+function render(){
+  const onLibrary = currentTab === "library";
+  $("#searchbar").classList.toggle("hidden", !onLibrary);
+  $("#search-section").classList.add("hidden");
+  const lib = $("#library-section");
+
+  if (currentTab === "library"){
+    $("#search-input").placeholder = mode === "series" ? "Chercher une série…" : "Chercher un film…";
+    if (mode === "series") renderSeriesLibrary(lib);
+    else renderMoviesLibrary(lib);
+  }
+  else if (currentTab === "watching"){ renderWatching(lib); }
+  else if (currentTab === "agenda"){ renderAgenda(lib); }
+  else if (currentTab === "discover"){ renderDiscover(lib); }
+  else if (currentTab === "lists"){ renderLists(lib); }
+}
+/* ---------- Tris & filtres de bibliothèque ---------- */
+const viewOpts = {
+  series: { sort:"recent", genre:"", rating:"" },
+  movies: { sort:"recent", genre:"", rating:"" }
+};
+window.setViewOpt = function(key, val){
+  viewOpts[mode][key] = val;
+  render();
+};
+function applyView(items){
+  const o = viewOpts[mode];
+  let out = items;
+  if (o.genre) out = out.filter(x => (x.genres||[]).includes(o.genre));
+  if (o.rating === "0") out = out.filter(x => !x.rating);
+  else if (o.rating) out = out.filter(x => (x.rating||0) >= parseInt(o.rating));
+  const name = x => (x.name || x.title || "").toLowerCase();
+  const sorters = {
+    recent: (a,b)=> (b.addedAt||0)-(a.addedAt||0),
+    alpha: (a,b)=> name(a).localeCompare(name(b), "fr"),
+    rating: (a,b)=> (b.rating||0)-(a.rating||0) || name(a).localeCompare(name(b), "fr"),
+    year: (a,b)=> (b.date||"").localeCompare(a.date||"")
+  };
+  return [...out].sort(sorters[o.sort] || sorters.recent);
+}
+function toolbarHTML(pool){
+  const o = viewOpts[mode];
+  const genres = [...new Set(pool.flatMap(x => x.genres || []))].sort((a,b)=>a.localeCompare(b,"fr"));
+  const sel = (v, cur) => v === cur ? "selected" : "";
+  return `<div class="toolbar">
+    <span class="lbl">Trier</span>
+    <select class="status-select" onchange="setViewOpt('sort', this.value)">
+      <option value="recent" ${sel("recent",o.sort)}>Ajout récent</option>
+      <option value="alpha" ${sel("alpha",o.sort)}>A → Z</option>
+      <option value="rating" ${sel("rating",o.sort)}>Ma note</option>
+      <option value="year" ${sel("year",o.sort)}>Année de sortie</option>
+    </select>
+    <span class="lbl">Genre</span>
+    <select class="status-select" onchange="setViewOpt('genre', this.value)">
+      <option value="">Tous</option>
+      ${genres.map(g => `<option value="${esc(g)}" ${sel(g,o.genre)}>${esc(g)}</option>`).join("")}
+    </select>
+    <span class="lbl">Note</span>
+    <select class="status-select" onchange="setViewOpt('rating', this.value)">
+      <option value="" ${sel("",o.rating)}>Toutes</option>
+      <option value="5" ${sel("5",o.rating)}>★★★★★</option>
+      <option value="4" ${sel("4",o.rating)}>★★★★ et +</option>
+      <option value="3" ${sel("3",o.rating)}>★★★ et +</option>
+      <option value="0" ${sel("0",o.rating)}>Non notés</option>
+    </select>
+  </div>`;
+}
+
+function renderSeriesLibrary(lib){
+  const all = Object.values(state.shows);
+  if (!all.length){
+    lib.innerHTML = `<div class="empty"><strong>Aucune série pour l'instant</strong>Cherche une série ci-dessus, explore l'onglet Découvrir, ou importe ton historique TV Time via ⇅.</div>`;
+    return;
+  }
+  const shows = applyView(all);
+  const by = st => shows.filter(s => effectiveStatus(s) === st);
+  const body = shows.length
+    ? section("En cours", by("watching"), showCard) +
+      section("À commencer", by("planned"), showCard) +
+      section("En pause", by("paused"), showCard) +
+      section("Terminées", by("completed"), showCard) +
+      section("Abandonnées", by("dropped"), showCard)
+    : `<div class="empty">Aucune série ne correspond à ces filtres.</div>`;
+  lib.innerHTML = toolbarHTML(all) + body;
+}
+function renderMoviesLibrary(lib){
+  const all = Object.values(state.movies);
+  if (!all.length){
+    lib.innerHTML = `<div class="empty"><strong>Aucun film pour l'instant</strong>Cherche un film ci-dessus, explore l'onglet Découvrir, ou importe ton historique TV Time via ⇅.</div>`;
+    return;
+  }
+  const movies = applyView(all);
+  const body = movies.length
+    ? section("À voir", movies.filter(m=>!m.watched), movieCard) +
+      section("Vus", movies.filter(m=>m.watched), movieCard)
+    : `<div class="empty">Aucun film ne correspond à ces filtres.</div>`;
+  lib.innerHTML = toolbarHTML(all) + body;
+}
+function section(label, items, cardFn){
+  if (!items.length) return "";
+  return `<div class="section-label">${label}<span class="count-pill">${items.length}</span></div>
+          <div class="grid">${items.map(cardFn).join("")}</div>`;
+}
+function posterOrFallback(path, title, size=IMG){
+  return path
+    ? `<img src="${size + path}" alt="" loading="lazy">`
+    : `<div class="noposter">${esc(title)}</div>`;
+}
+function showCard(s){
+  const p = showProgress(s);
+  const badge = p.total && p.seen >= p.total
+    ? `<span class="badge done">✓</span>`
+    : (p.seen ? `<span class="badge">${p.seen}/${p.total}</span>` : "");
+  return `<button class="card" onclick="openShow(${s.id})">
+    ${posterOrFallback(s.poster, s.name)}${badge}
+    ${s.favorite ? `<span class="fav-dot">❤️</span>` : ""}
+    <div class="progress"><div style="width:${p.pct}%"></div></div>
+    <div class="meta"><div class="title">${esc(s.name)}</div>
+    <div class="sub">${year(s.date)} ${starsHTML(s.rating)}</div></div>
+  </button>`;
+}
+function movieCard(m){
+  return `<button class="card" onclick="openMovie(${m.id})">
+    ${posterOrFallback(m.poster, m.title)}
+    ${m.watched ? `<span class="badge done">✓ Vu</span>` : ""}
+    ${m.favorite ? `<span class="fav-dot">❤️</span>` : ""}
+    <div class="meta"><div class="title">${esc(m.title)}</div>
+    <div class="sub">${year(m.date)} ${starsHTML(m.rating)}</div></div>
+  </button>`;
+}
+
+/* ---------- Onglet En cours (séries) ---------- */
+function renderWatching(lib){
+  const shows = Object.values(state.shows).filter(s => effectiveStatus(s) === "watching")
+    .sort((a,b)=> lastActivity(b) - lastActivity(a));
+  if (!shows.length){
+    lib.innerHTML = `<div class="empty"><strong>Rien en cours</strong>Commence une série (coche un épisode) et elle apparaîtra ici avec ton point de reprise.</div>`;
+    return;
+  }
+  lib.innerHTML = `<div class="section-label">En cours de visionnage<span class="count-pill">${shows.length}</span></div>` +
+    shows.map(s => {
+      const p = showProgress(s);
+      const nx = nextToWatch(s);
+      return `<div class="agenda-row" onclick="openShow(${s.id})">
+        ${posterOrFallback(s.poster, s.name, IMG_SM)}
+        <div class="info">
+          <div class="show">${esc(s.name)}</div>
+          <div class="ep">${nx
+            ? `À voir : <strong style="color:var(--accent);">${epCode(nx)}</strong> · reste ${p.total - p.seen} ép.`
+            : `${p.seen}/${p.total} ép.`}</div>
+        </div>
+        ${nx ? `<button class="next-check" title="Marquer ${epCode(nx)} comme vu"
+          onclick="event.stopPropagation(); markNextWatched(${s.id})">✓</button>` : ""}
+      </div>`;
+    }).join("");
+}
+window.markNextWatched = function(id){
+  const s = state.shows[id];
+  const nx = nextToWatch(s);
+  if (!nx) return;
+  s.watched[`s${nx.season}e${nx.episode}`] = Date.now();
+  saveState(); render();
+  toast(`${s.name} — ${epCode(nx)} marqué vu ✓`);
+};
+
+/* ---------- Agenda (scopé par mode) ---------- */
+async function refreshShowDetails(show, force=false){
+  const stale = !show.detailsAt || (Date.now() - show.detailsAt > 12*3600*1000);
+  if (!stale && !force) return show;
+  try{
+    const d = await tmdb(`/tv/${show.id}`);
+    show.tmdbStatus = d.status;
+    show.nextEp = d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null;
+    show.seasons = buildSeasons(d);
+    show.genres = (d.genres||[]).map(g=>g.name);
+    show.detailsAt = Date.now();
+    saveState();
+  }catch(e){}
+  return show;
+}
+async function renderAgenda(lib){
+  if (mode === "series"){
+    // On rafraîchit toutes les séries non abandonnées : une série "terminée"
+    // peut gagner une nouvelle saison et redevenir "en cours".
+    const refreshable = Object.values(state.shows).filter(s => effectiveStatus(s) !== "dropped");
+    if (!refreshable.length){
+      lib.innerHTML = `<div class="empty"><strong>Agenda vide</strong>Ajoute des séries en cours de diffusion et leurs prochains épisodes apparaîtront ici.</div>`;
+      return;
+    }
+    lib.innerHTML = `<div class="empty" style="border:none; padding:20px;">Mise à jour de l'agenda…</div>`;
+    for (const s of refreshable){ await refreshShowDetails(s); }
+
+    const tracked = refreshable.filter(s => {
+      const st = effectiveStatus(s);
+      return st === "watching" || st === "planned" || st === "paused";
+    });
+
+    const upcoming = tracked.filter(s => s.nextEp && s.nextEp.air_date).map(s => ({show:s, ep:s.nextEp}))
+      .sort((a,b)=> a.ep.air_date.localeCompare(b.ep.air_date));
+
+    let html = `<div class="modal-actions" style="margin:0 0 6px;">
+      <button class="btn ghost" onclick="forceRefreshAgenda()">↻ Actualiser</button>
+    </div>`;
+    if (upcoming.length){
+      html += `<div class="section-label">Prochains épisodes<span class="count-pill">${upcoming.length}</span></div>`;
+      html += upcoming.map(({show, ep}) => {
+        const d = daysUntil(ep.air_date);
+        return `<div class="agenda-row" onclick="openShow(${show.id})">
+          ${posterOrFallback(show.poster, show.name, IMG_SM)}
+          <div class="info">
+            <div class="show">${esc(show.name)}</div>
+            <div class="ep">S${String(ep.season).padStart(2,"0")}E${String(ep.episode).padStart(2,"0")}${ep.name ? " · " + esc(ep.name) : ""}</div>
+          </div>
+          <div class="countdown">
+            <div class="when">${countdownLabel(d)}</div>
+            <div class="date">${fmtDate(ep.air_date)}</div>
+          </div>
+        </div>`;
+      }).join("");
+    } else {
+      html += `<div class="empty"><strong>Rien de programmé</strong>Aucune de tes séries n'a d'épisode avec une date de diffusion annoncée pour le moment.</div>`;
+    }
+    lib.innerHTML = html;
+  } else {
+    // ---- Agenda Films : uniquement des films ----
+    const future = Object.values(state.movies).filter(m => !m.watched && m.date && daysUntil(m.date) > 0)
+      .sort((a,b)=> a.date.localeCompare(b.date));
+    const outNow = Object.values(state.movies).filter(m => !m.watched && m.date && daysUntil(m.date) <= 0 && daysUntil(m.date) > -60)
+      .sort((a,b)=> b.date.localeCompare(a.date));
+    if (!future.length && !outNow.length){
+      lib.innerHTML = `<div class="empty"><strong>Agenda vide</strong>Ajoute à ta watchlist des films pas encore sortis et leur compte à rebours apparaîtra ici.</div>`;
+      return;
+    }
+    let html = "";
+    if (future.length){
+      html += `<div class="section-label">Sorties à venir<span class="count-pill">${future.length}</span></div>`;
+      html += future.map(m => `<div class="agenda-row" onclick="openMovie(${m.id})">
+          ${posterOrFallback(m.poster, m.title, IMG_SM)}
+          <div class="info"><div class="show">${esc(m.title)}</div><div class="ep">Dans ta watchlist</div></div>
+          <div class="countdown"><div class="when">${countdownLabel(daysUntil(m.date))}</div><div class="date">${fmtDate(m.date)}</div></div>
+        </div>`).join("");
+    }
+    if (outNow.length){
+      html += `<div class="section-label">Sortis récemment (à voir !)<span class="count-pill">${outNow.length}</span></div>`;
+      html += outNow.map(m => `<div class="agenda-row" onclick="openMovie(${m.id})">
+          ${posterOrFallback(m.poster, m.title, IMG_SM)}
+          <div class="info"><div class="show">${esc(m.title)}</div><div class="ep">Sorti le ${fmtDate(m.date)}</div></div>
+        </div>`).join("");
+    }
+    lib.innerHTML = html;
+  }
+}
+window.forceRefreshAgenda = async function(){
+  for (const s of Object.values(state.shows)) s.detailsAt = 0;
+  render();
+};
+
+/* ---------- Découvrir (scopé par mode) ---------- */
+async function renderDiscover(lib){
+  const kind = kindOf();
+  lib.innerHTML = `<div class="empty" style="border:none; padding:20px;">Chargement des découvertes…</div>`;
+  try{
+    if (!discoverCache[kind]){
+      const calls = kind === "tv"
+        ? [tmdb("/trending/tv/week"), tmdb("/tv/on_the_air"), tmdb("/tv/top_rated")]
+        : [tmdb("/trending/movie/week"), tmdb("/movie/upcoming", {region:REGION}), tmdb("/movie/top_rated")];
+      const [trend, now, top] = await Promise.all(calls);
+      discoverCache[kind] = {
+        trending: (trend.results||[]).slice(0,15),
+        now: (now.results||[]).slice(0,15),
+        top: (top.results||[]).slice(0,15)
+      };
+    }
+    const d = discoverCache[kind];
+    const nowLabel = kind === "tv" ? "Diffusées en ce moment" : "Bientôt au cinéma";
+    let html =
+      discoverStrip("Tendances cette semaine", d.trending, kind) +
+      discoverStrip(nowLabel, d.now, kind) +
+      discoverStrip("Les mieux notés de tous les temps", d.top, kind);
+
+    lib.innerHTML = html + `<div id="personal-recos"></div>`;
+    fillPersonalRecos(kind); // asynchrone, s'affiche quand prêt
+  }catch(e){
+    lib.innerHTML = `<div class="empty">Impossible de charger les découvertes — vérifie ta connexion ou ta clé API.</div>`;
+  }
+}
+function discoverStrip(label, items, kind){
+  if (!items || !items.length) return "";
+  return `<div class="section-label">${label}</div>
+    <div class="strip">${items.map(r => discoverCard(r, kind)).join("")}</div>`;
+}
+function discoverCard(r, kind){
+  const title = r.name || r.title;
+  const inLib = kind==="tv" ? !!state.shows[r.id] : !!state.movies[r.id];
+  return `<div class="card" onclick="openPreview('${kind}',${r.id})" role="button" tabindex="0">
+    ${posterOrFallback(r.poster_path, title, IMG_SM)}
+    ${inLib ? `<span class="badge done">✓</span>`
+      : `<button class="result-add" title="Ajouter" onclick="quickAdd(event,'${kind}',${r.id})">+</button>
+         <button class="result-seen" title="Ajouter comme déjà vu" onclick="quickAddSeen(event,'${kind}',${r.id})">✓</button>`}
+    <div class="meta"><div class="title">${esc(title)}</div></div>
+  </div>`;
+}
+window.quickAdd = async function(ev, kind, id){
+  ev.stopPropagation();
+  try{
+    if (kind === "tv") await addShow(id);
+    else await addMovie(id);
+    render();
+  }catch(e){ toast("Impossible d'ajouter — réessaie."); }
+};
+window.quickAddSeen = async function(ev, kind, id){
+  ev.stopPropagation();
+  try{
+    if (kind === "tv"){
+      const s = await addShow(id);
+      for (const [num, se] of Object.entries(s.seasons)){
+        if (num === "0") continue;
+        for (let e=1; e <= (se.episode_count || 0); e++){
+          const k = `s${num}e${e}`;
+          s.watched[k] = s.watched[k] || Date.now();
+        }
+      }
+      saveState();
+      toast(`« ${s.name} » ajoutée et marquée vue ✓`);
+    } else {
+      const m = await addMovie(id, true);
+      toast(`« ${m.title} » ajouté comme vu ✓`);
+    }
+    render();
+  }catch(e){ toast("Impossible d'ajouter — réessaie."); }
+};
+window.openPreview = async function(kind, id){
+  // Déjà dans la bibliothèque → fiche complète
+  if (kind === "tv" && state.shows[id]) return openShow(id);
+  if (kind === "movie" && state.movies[id]) return openMovie(id);
+  try{
+    const d = await tmdb(`/${kind}/${id}`);
+    const title = d.name || d.title;
+    const date = d.first_air_date || d.release_date;
+    const genres = (d.genres || []).map(g => g.name);
+    const extra = kind === "tv"
+      ? `${d.number_of_seasons || "?"} saison(s) · ${d.number_of_episodes || "?"} épisodes ${tmdbStatusChip(d.status)}`
+      : (d.runtime ? `${d.runtime} min` : "");
+    const actions = kind === "tv"
+      ? `<button class="btn" onclick="addFromPreview('tv',${id},false)">＋ Suivre cette série</button>`
+      : `<button class="btn" onclick="addFromPreview('movie',${id},false)">＋ À voir</button>
+         <button class="btn ghost" onclick="addFromPreview('movie',${id},true)">✓ Déjà vu</button>`;
+    $("#modal-content").innerHTML = `
+      <div class="modal-head">
+        ${posterOrFallback(d.poster_path, title)}
+        <div style="min-width:0;">
+          <h2>${esc(title)}</h2>
+          <div class="sub">${year(date)}${extra ? " · " + extra : ""}</div>
+          ${genres.length ? `<div class="sub" style="margin-top:3px;">${genres.slice(0,4).map(g=>`<span class="status-chip">${esc(g)}</span>`).join(" ")}</div>` : ""}
+          <p>${esc(d.overview || "Pas de synopsis disponible.")}</p>
+          <div class="modal-actions">
+            ${actions}
+            <span id="trailer-slot"></span>
+          </div>
+        </div>
+      </div>
+      ${extrasHTML()}`;
+    $("#overlay").classList.add("open");
+    fillExtras(kind, id);
+  }catch(e){ toast("Impossible de charger la fiche"); }
+};
+window.addFromPreview = async function(kind, id, watched){
+  try{
+    if (kind === "tv") await addShow(id);
+    else await addMovie(id, watched);
+    render();
+    if (kind === "tv") openShow(id); else openMovie(id); // bascule sur la fiche complète
+  }catch(e){ toast("Impossible d'ajouter — réessaie."); }
+};
+async function fillPersonalRecos(kind){
+  const box = $("#personal-recos");
+  if (!box) return;
+  // graines : favoris > bien notés > activité récente
+  const pool = kind === "tv" ? Object.values(state.shows) : Object.values(state.movies);
+  const seeds = [
+    ...pool.filter(x => x.favorite),
+    ...pool.filter(x => !x.favorite && (x.rating||0) >= 4),
+    ...pool.filter(x => !x.favorite && (x.rating||0) < 4)
+      .sort((a,b)=> (b.addedAt||0)-(a.addedAt||0))
+  ].slice(0, 3);
+  if (!seeds.length) return;
+  const have = new Set(pool.map(x => x.id));
+  let html = "";
+  for (const seed of seeds){
+    try{
+      const res = await tmdb(`/${kind}/${seed.id}/recommendations`);
+      const recos = (res.results||[]).filter(r => !have.has(r.id)).slice(0, 10);
+      if (recos.length){
+        html += `<div class="section-label">Parce que tu as ${kind==="tv"?"suivi":"ajouté"} « ${esc(seed.name || seed.title)} »</div>
+          <div class="strip">${recos.map(r => discoverCard(r, kind)).join("")}</div>`;
+      }
+    }catch(e){}
+  }
+  const stillThere = $("#personal-recos");
+  if (stillThere) stillThere.innerHTML = html;
+}
+
+/* ---------- Recherche (onglet bibliothèque) ---------- */
+$("#search-input").addEventListener("input", e => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  if (!q){ $("#search-section").classList.add("hidden"); return; }
+  searchTimer = setTimeout(()=> doSearch(q), 350);
+});
+async function doSearch(q){
+  try{
+    const kind = kindOf();
+    const data = await tmdb(`/search/${kind}`, { query:q, include_adult:"false" });
+    const results = (data.results||[]).slice(0,12);
+    $("#search-section").classList.remove("hidden");
+    $("#search-results").innerHTML = results.length ? results.map(r => {
+      const title = r.name || r.title, date = r.first_air_date || r.release_date;
+      const inLib = kind==="tv" ? !!state.shows[r.id] : !!state.movies[r.id];
+      return `<div class="card" onclick="openPreview('${kind}',${r.id})" role="button" tabindex="0">
+        ${posterOrFallback(r.poster_path, title)}
+        ${inLib ? `<span class="badge done">Déjà ajouté</span>`
+          : `<button class="result-add" title="Ajouter" onclick="quickAdd(event,'${kind}',${r.id})">+</button>
+             <button class="result-seen" title="Ajouter comme déjà vu" onclick="quickAddSeen(event,'${kind}',${r.id})">✓</button>`}
+        <div class="meta"><div class="title">${esc(title)}</div><div class="sub">${year(date)}</div></div>
+      </div>`;
+    }).join("") : `<div class="empty">Rien trouvé sur TMDB pour « ${esc(q)} ».</div>`;
+  }catch(e){ toast("Erreur TMDB — vérifie ta clé API dans ⚙"); }
+}
+
+/* ---------- Ajout ---------- */
+function buildSeasons(d){
+  const seasons = {};
+  for (const s of d.seasons || []){
+    if (s.season_number === 0) continue; // on ignore les épisodes spéciaux
+    seasons[s.season_number] = { episode_count: s.episode_count, name: s.name };
+  }
+  return seasons;
+}
+function pickEp(e){
+  return { air_date:e.air_date, season:e.season_number, episode:e.episode_number, name:e.name };
+}
+async function addShow(id){
+  if (state.shows[id]) return state.shows[id];
+  const d = await tmdb(`/tv/${id}`);
+  state.shows[id] = {
+    id, name:d.name, poster:d.poster_path, date:d.first_air_date, overview:d.overview,
+    seasons: buildSeasons(d), watched:{}, addedAt:Date.now(),
+    tmdbStatus: d.status,
+    nextEp: d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null,
+    detailsAt: Date.now(),
+    genres: (d.genres||[]).map(g=>g.name),
+    userStatus:null, rating:0, favorite:false, review:"", rewatches:0
+  };
+  saveState(); toast(`« ${d.name} » ajoutée`);
+  return state.shows[id];
+}
+async function addMovie(id, watched=false){
+  if (state.movies[id]) return state.movies[id];
+  const d = await tmdb(`/movie/${id}`);
+  state.movies[id] = {
+    id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview,
+    watched, watchedAt: watched ? Date.now() : null, addedAt:Date.now(),
+    genres:(d.genres||[]).map(g=>g.name), watchCount: watched ? 1 : 0,
+    rating:0, favorite:false, review:""
+  };
+  saveState(); toast(`« ${d.title} » ajouté`);
+  return state.movies[id];
+}
+
+/* ---------- Listes (scopées par mode) ---------- */
+function renderLists(lib){
+  const type = kindOf();
+  const other = type === "tv" ? "movie" : "tv";
+  const otherLabel = type === "tv" ? "film(s)" : "série(s)";
+  const pool = type === "tv" ? state.shows : state.movies;
+
+  const favs = Object.values(pool).filter(x => x.favorite).map(x => ({type, id:x.id}));
+
+  let html = `<div class="new-list">
+    <input type="text" id="new-list-name" placeholder="Nouvelle liste (ex : ${type==="tv"?"Séries à binge, Pépites SF":"Films de Noël, À voir avec Léa"}…)">
+    <button class="btn" onclick="createList()">Créer</button>
+  </div>`;
+
+  if (favs.length){
+    html += `<div class="list-card">
+      <div class="list-head"><h3>❤️ Favoris <span class="count-pill">${favs.length}</span></h3></div>
+      <div class="list-items">${favs.map(it => listItemCard(it, null)).join("")}</div>
+    </div>`;
+  }
+  const lists = Object.values(state.lists).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
+  if (!lists.length && !favs.length){
+    html += `<div class="empty"><strong>Aucune liste</strong>Crée ta première liste ci-dessus, puis ajoute des titres depuis leur fiche (bouton « + Liste »).</div>`;
+  }
+  html += lists.map(l => {
+    const visible = l.items.filter(it => it.type === type);
+    const hiddenCount = l.items.length - visible.length;
+    return `<div class="list-card">
+      <div class="list-head">
+        <h3>${esc(l.name)} <span class="count-pill">${visible.length}</span></h3>
+        ${hiddenCount ? `<span class="hidden-note">+ ${hiddenCount} ${otherLabel} de l'autre côté ⇄</span>` : ""}
+        <button class="del" onclick="deleteList('${l.id}')">Supprimer</button>
+      </div>
+      ${visible.length
+        ? `<div class="list-items">${visible.map(it => listItemCard(it, l.id)).join("")}</div>`
+        : `<p style="color:var(--muted); font-size:13px; margin-top:10px;">Rien côté ${type==="tv"?"séries":"films"} dans cette liste pour l'instant.</p>`}
+    </div>`;
+  }).join("");
+  lib.innerHTML = html;
+}
+function listItemCard(it, listId){
+  const obj = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
+  if (!obj) return "";
+  const title = obj.name || obj.title;
+  const open = it.type === "tv" ? `openShow(${it.id})` : `openMovie(${it.id})`;
+  return `<div class="card" onclick="${open}" role="button" tabindex="0">
+    ${posterOrFallback(obj.poster, title, IMG_SM)}
+    ${listId ? `<button class="rm" onclick="event.stopPropagation(); removeFromList('${listId}','${it.type}',${it.id})">✕</button>` : ""}
+    <div class="meta"><div class="title">${esc(title)}</div></div>
+  </div>`;
+}
+window.createList = function(){
+  const name = $("#new-list-name").value.trim();
+  if (!name){ toast("Donne un nom à ta liste"); return; }
+  const id = "l" + Date.now();
+  state.lists[id] = { id, name, items:[], createdAt:Date.now() };
+  saveState(); render();
+};
+window.deleteList = function(id){
+  if (!confirm(`Supprimer la liste « ${state.lists[id]?.name} » ?`)) return;
+  delete state.lists[id]; saveState(); render();
+};
+window.removeFromList = function(listId, type, id){
+  const l = state.lists[listId]; if (!l) return;
+  l.items = l.items.filter(it => !(it.type === type && it.id === id));
+  saveState(); render();
+};
+window.openListPicker = function(type, id){
+  const lists = Object.values(state.lists);
+  const box = $("#picker-options");
+  if (!lists.length){
+    box.innerHTML = `<p style="color:var(--muted); font-size:13.5px; margin-bottom:12px;">Aucune liste pour l'instant — crée-en une dans l'onglet Listes.</p>`;
+  } else {
+    box.innerHTML = lists.map(l => {
+      const already = l.items.some(it => it.type === type && it.id === id);
+      return `<button class="opt" ${already?"disabled style='opacity:.45'":""} onclick="addToList('${l.id}','${type}',${id})">
+        ${esc(l.name)} ${already ? "· déjà dedans" : ""}
+      </button>`;
+    }).join("");
+  }
+  $("#picker").classList.add("open");
+};
+window.addToList = function(listId, type, id){
+  state.lists[listId].items.push({type, id});
+  saveState(); closePicker(); toast("Ajouté à la liste");
+};
+window.closePicker = function(){ $("#picker").classList.remove("open"); };
+$("#picker").addEventListener("click", e => { if (e.target === e.currentTarget) closePicker(); });
+
+/* ---------- Blocs communs des fiches ---------- */
+function ratingBlock(type, id, rating){
+  return `<div class="block"><h4>Ma note</h4>
+    <div class="stars" id="stars-box">${[1,2,3,4,5].map(i =>
+      `<span class="${i<=rating?'on':''}" onclick="setRating('${type}',${id},${i})">★</span>`).join("")}
+    </div></div>`;
+}
+function reviewBlock(type, id, review){
+  return `<div class="block"><h4>Journal / critique</h4>
+    <textarea class="review" placeholder="Ton avis, tes impressions…"
+      onchange="setReview('${type}',${id},this.value)">${esc(review||"")}</textarea>
+  </div>`;
+}
+window.setRating = function(type, id, val){
+  const obj = type === "tv" ? state.shows[id] : state.movies[id];
+  obj.rating = (obj.rating === val) ? 0 : val;
+  saveState();
+  const box = $("#stars-box");
+  if (box) box.querySelectorAll("span").forEach((sp,i)=> sp.classList.toggle("on", i < obj.rating));
+  render();
+};
+window.setReview = function(type, id, val){
+  const obj = type === "tv" ? state.shows[id] : state.movies[id];
+  obj.review = val; saveState();
+};
+window.toggleFav = function(type, id, btn){
+  const obj = type === "tv" ? state.shows[id] : state.movies[id];
+  obj.favorite = !obj.favorite; saveState();
+  btn.classList.toggle("on", obj.favorite);
+  btn.textContent = obj.favorite ? "❤️ Favori" : "🤍 Favori";
+  render();
+};
+
+async function loadExtras(type, id){
+  const key = `${type}-${id}`;
+  if (extraCache[key]) return extraCache[key];
+  const out = { providers:[], cast:[], trailer:null, recos:[] };
+  try{
+    const [prov, credits, videos, recos] = await Promise.all([
+      tmdb(`/${type}/${id}/watch/providers`),
+      tmdb(`/${type}/${id}/credits`),
+      tmdb(`/${type}/${id}/videos`, { include_video_language:"fr,en" }),
+      tmdb(`/${type}/${id}/recommendations`)
+    ]);
+    const fr = prov.results?.[REGION];
+    if (fr){
+      const seen = new Set();
+      for (const group of ["flatrate","free","ads"]){
+        for (const p of fr[group] || []){
+          if (!seen.has(p.provider_id)){ seen.add(p.provider_id); out.providers.push(p); }
+        }
+      }
+      out.providerLink = fr.link;
+    }
+    out.cast = (credits.cast || []).slice(0, 10);
+    const vids = videos.results || [];
+    out.trailer = vids.find(v => v.site==="YouTube" && v.type==="Trailer" && v.iso_639_1==="fr")
+               || vids.find(v => v.site==="YouTube" && v.type==="Trailer")
+               || vids.find(v => v.site==="YouTube");
+    out.recos = (recos.results || []).slice(0, 6);
+  }catch(e){}
+  extraCache[key] = out;
+  return out;
+}
+function extrasHTML(){
+  return `
+    <div class="block" id="x-providers"><h4>Où regarder (France)</h4><div class="providers"><span class="none">Chargement…</span></div></div>
+    <div class="block" id="x-cast"><h4>Casting</h4><div class="cast"><span style="color:var(--muted);font-size:13px;">Chargement…</span></div></div>
+    <div class="block" id="x-recos"><h4>Si tu as aimé, essaie…</h4><div class="reco-grid"><span style="color:var(--muted);font-size:13px;">Chargement…</span></div></div>`;
+}
+async function fillExtras(type, id){
+  const x = await loadExtras(type, id);
+  const provBox = document.querySelector("#x-providers .providers");
+  if (provBox){
+    provBox.innerHTML = x.providers.length
+      ? x.providers.map(p => `<img src="${IMG_LOGO + p.logo_path}" alt="${esc(p.provider_name)}" title="${esc(p.provider_name)}">`).join("")
+        + (x.providerLink ? ` <a href="${x.providerLink}" target="_blank" rel="noopener" style="color:var(--accent); font-size:12.5px;">Voir sur TMDB ↗</a>` : "")
+      : `<span class="none">Pas trouvé en streaming par abonnement en France pour l'instant.</span>`;
+  }
+  const castBox = document.querySelector("#x-cast .cast");
+  if (castBox){
+    castBox.innerHTML = x.cast.length ? x.cast.map(p => `
+      <div class="person">
+        ${p.profile_path ? `<img src="${IMG_SM + p.profile_path}" alt="">` : `<div class="noface">👤</div>`}
+        <div class="pname">${esc(p.name)}</div>
+        <div class="prole">${esc(p.character || "")}</div>
+      </div>`).join("") : `<span style="color:var(--muted);font-size:13px;">Pas d'infos casting.</span>`;
+  }
+  const recoBox = document.querySelector("#x-recos .reco-grid");
+  if (recoBox){
+    recoBox.innerHTML = x.recos.length ? x.recos.map(r => discoverCard(r, type)).join("")
+      : `<span style="color:var(--muted);font-size:13px;">Pas de suggestions.</span>`;
+  }
+  const trailerSlot = document.querySelector("#trailer-slot");
+  if (trailerSlot && x.trailer){
+    trailerSlot.innerHTML = `<a class="btn ghost" href="https://www.youtube.com/watch?v=${x.trailer.key}" target="_blank" rel="noopener">▶ Bande-annonce</a>`;
+  }
+}
+
+/* ---------- Fiche série ---------- */
+window.openShow = async function(id){
+  const s = state.shows[id]; if (!s) return;
+  const p = showProgress(s);
+  const st = effectiveStatus(s);
+  $("#modal-content").innerHTML = `
+    <div class="modal-head">
+      ${posterOrFallback(s.poster, s.name)}
+      <div style="min-width:0;">
+        <h2>${esc(s.name)}</h2>
+        <div class="sub">${year(s.date)} · ${p.seen}/${p.total} ép. ${tmdbStatusChip(s.tmdbStatus)}${(s.rewatches||0) ? ` <span class="status-chip">🔁 vu ${s.rewatches + (st==="completed"?1:0)} fois</span>` : ""}</div>
+        ${(s.genres||[]).length ? `<div class="sub" style="margin-top:3px;">${s.genres.slice(0,4).map(g=>`<span class="status-chip">${esc(g)}</span>`).join(" ")}</div>` : ""}
+        <p>${esc(s.overview || "")}</p>
+        <div class="modal-actions">
+          <select class="status-select" onchange="setShowStatus(${id}, this.value)">
+            <option value="" ${!s.userStatus?"selected":""}>Statut auto (${{watching:"en cours",planned:"à commencer",completed:"terminée"}[st] || "auto"})</option>
+            <option value="paused" ${s.userStatus==="paused"?"selected":""}>⏸ En pause</option>
+            <option value="dropped" ${s.userStatus==="dropped"?"selected":""}>✋ Abandonnée</option>
+          </select>
+          ${st === "completed" ? `<button class="btn ghost" onclick="restartShow(${id})">🔁 Recommencer</button>`
+            : `<button class="btn ghost" onclick="markAllWatched(${id})">✓ Tout marquer vu</button>`}
+          <button class="btn heart ${s.favorite?"on":""}" onclick="toggleFav('tv',${id},this)">${s.favorite?"❤️":"🤍"} Favori</button>
+          <button class="btn ghost" onclick="openListPicker('tv',${id})">+ Liste</button>
+          <span id="trailer-slot"></span>
+          <button class="btn danger" onclick="removeShow(${id})">Retirer</button>
+        </div>
+      </div>
+    </div>
+    ${s.nextEp && s.nextEp.air_date ? `<div class="block" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h4 style="margin:0;">Prochain épisode</h4>
+        <span style="font-size:13.5px;">S${String(s.nextEp.season).padStart(2,"0")}E${String(s.nextEp.episode).padStart(2,"0")}${s.nextEp.name?" · "+esc(s.nextEp.name):""}</span>
+        <span style="margin-left:auto; color:var(--accent); font-weight:600; font-size:13.5px;">${countdownLabel(daysUntil(s.nextEp.air_date))} · ${fmtDate(s.nextEp.air_date)}</span>
+      </div>` : ""}
+    ${ratingBlock("tv", id, s.rating)}
+    ${reviewBlock("tv", id, s.review)}
+    <div class="modal-body" style="padding:0;">
+      ${Object.entries(s.seasons).filter(([num]) => num !== "0").sort((a,b)=>+a[0]-+b[0]).map(([num, se]) => {
+        const seen = Object.keys(s.watched).filter(k => k.startsWith(`s${num}e`)).length;
+        const label = "Saison " + num;
+        return `<div class="season" data-season="${num}">
+          <button class="season-head" onclick="toggleSeason(${id}, ${num})">
+            <span class="chev">›</span> ${label}
+            <span class="spct">${seen}/${se.episode_count}</span>
+          </button>
+          <div class="ep-list" id="eps-${id}-${num}"></div>
+        </div>`;
+      }).join("")}
+    </div>
+    ${extrasHTML()}`;
+  $("#overlay").classList.add("open");
+  fillExtras("tv", id);
+  refreshShowDetails(s);
+};
+window.setShowStatus = function(id, val){
+  state.shows[id].userStatus = val || null;
+  saveState(); render();
+};
+window.restartShow = function(id){
+  const s = state.shows[id];
+  if (!confirm(`Recommencer « ${s.name} » ?\nTa progression repart de zéro et un re-visionnage (+1) est comptabilisé.`)) return;
+  s.rewatches = (s.rewatches || 0) + 1;
+  s.watched = {};
+  s.userStatus = null;
+  saveState(); openShow(id); render();
+  toast(`C'est reparti pour « ${s.name} » ! 🔁`);
+};
+window.markAllWatched = function(id){
+  const s = state.shows[id];
+  const p = showProgress(s);
+  if (!confirm(`Marquer « ${s.name} » comme entièrement vue ?\n${p.total - p.seen} épisode(s) seront cochés.`)) return;
+  for (const [num, se] of Object.entries(s.seasons)){
+    if (num === "0") continue; // les spéciaux restent au choix, à cocher à la main
+    for (let e=1; e <= (se.episode_count || 0); e++){
+      const k = `s${num}e${e}`;
+      s.watched[k] = s.watched[k] || Date.now();
+    }
+  }
+  s.userStatus = null; // le statut auto passera à "terminée"
+  saveState(); openShow(id); render();
+  toast(`« ${s.name} » marquée comme vue ✓`);
+};
+window.toggleSeason = async function(showId, num){
+  const box = document.querySelector(`.season[data-season="${num}"]`);
+  const wasOpen = box.classList.contains("open");
+  box.classList.toggle("open");
+  if (wasOpen) return;
+  const list = $(`#eps-${showId}-${num}`);
+  if (list.dataset.loaded) return;
+  list.innerHTML = `<div class="ep"><span class="num">…</span><span class="name">Chargement</span></div>`;
+  try{
+    if (!seasonCache[showId]) seasonCache[showId] = {};
+    if (!seasonCache[showId][num]){
+      const d = await tmdb(`/tv/${showId}/season/${num}`);
+      seasonCache[showId][num] = d.episodes || [];
+    }
+    renderEpisodes(showId, num);
+    list.dataset.loaded = "1";
+  }catch(e){ list.innerHTML = `<div class="ep"><span class="name">Erreur de chargement</span></div>`; }
+};
+function renderEpisodes(showId, num){
+  const s = state.shows[showId];
+  const eps = seasonCache[showId][num] || [];
+  const list = $(`#eps-${showId}-${num}`);
+  list.innerHTML = `
+    <div class="season-tools">
+      <button class="mini-btn" onclick="markSeason(${showId}, ${num}, true)">Tout marquer vu</button>
+      <button class="mini-btn" onclick="markSeason(${showId}, ${num}, false)">Tout décocher</button>
+    </div>` +
+    eps.map(ep => {
+      const key = `s${num}e${ep.episode_number}`;
+      const seen = !!s.watched[key];
+      const future = ep.air_date && daysUntil(ep.air_date) > 0;
+      return `<div class="ep ${seen?'seen':''}">
+        <div class="clickable" onclick="toggleEp(${showId},'${key}',${num})">
+          <span class="check">✓</span>
+          <span class="num">E${String(ep.episode_number).padStart(2,"0")}</span>
+          <span class="name">${esc(ep.name || "Épisode " + ep.episode_number)}${future ? ` <span style="color:var(--accent); font-size:11px;">· ${countdownLabel(daysUntil(ep.air_date))}</span>` : ""}</span>
+        </div>
+        <button class="upto" title="Marquer tout vu jusqu'ici" onclick="markUpTo(${showId}, ${num}, ${ep.episode_number})">⇤</button>
+      </div>`;
+    }).join("");
+}
+window.toggleEp = function(showId, key, num){
+  const s = state.shows[showId];
+  if (s.watched[key]) delete s.watched[key]; else s.watched[key] = Date.now();
+  saveState(); renderEpisodes(showId, num); refreshSeasonCounts(showId); render();
+};
+window.markSeason = function(showId, num, val){
+  const s = state.shows[showId];
+  const count = s.seasons[num].episode_count;
+  for (let e=1; e<=count; e++){
+    const key = `s${num}e${e}`;
+    if (val) s.watched[key] = s.watched[key] || Date.now(); else delete s.watched[key];
+  }
+  saveState(); renderEpisodes(showId, num); refreshSeasonCounts(showId); render();
+};
+window.markUpTo = function(showId, seasonNum, epNum){
+  const s = state.shows[showId];
+  for (const [num, se] of Object.entries(s.seasons)){
+    if (num === "0") continue;
+    const n = parseInt(num);
+    if (n < seasonNum){
+      for (let e=1; e<=se.episode_count; e++){ const k=`s${n}e${e}`; s.watched[k] = s.watched[k] || Date.now(); }
+    } else if (n === seasonNum){
+      for (let e=1; e<=epNum; e++){ const k=`s${n}e${e}`; s.watched[k] = s.watched[k] || Date.now(); }
+    }
+  }
+  saveState();
+  if (seasonCache[showId]?.[seasonNum]) renderEpisodes(showId, seasonNum);
+  refreshSeasonCounts(showId); render();
+  toast("Marqué vu jusqu'ici ✓");
+};
+function refreshSeasonCounts(showId){
+  const s = state.shows[showId];
+  document.querySelectorAll(`.season`).forEach(box => {
+    const num = box.dataset.season;
+    if (!s.seasons[num]) return;
+    const seen = Object.keys(s.watched).filter(k => k.startsWith(`s${num}e`)).length;
+    const el = box.querySelector(".spct");
+    if (el) el.textContent = `${seen}/${s.seasons[num].episode_count}`;
+  });
+}
+window.removeShow = function(id){
+  if (!confirm("Retirer cette série et son suivi ?")) return;
+  delete state.shows[id];
+  for (const l of Object.values(state.lists)) l.items = l.items.filter(it => !(it.type==="tv" && it.id===id));
+  saveState(); closeModal(); render(); toast("Série retirée");
+};
+
+/* ---------- Fiche film ---------- */
+window.openMovie = function(id){
+  const m = state.movies[id]; if (!m) return;
+  const future = m.date && daysUntil(m.date) > 0;
+  $("#modal-content").innerHTML = `
+    <div class="modal-head">
+      ${posterOrFallback(m.poster, m.title)}
+      <div style="min-width:0;">
+        <h2>${esc(m.title)}</h2>
+        <div class="sub">${year(m.date)}${future ? ` <span class="status-chip ok">Sortie ${countdownLabel(daysUntil(m.date))}</span>` : ""}${m.watched && m.watchedAt ? ` · vu le ${new Date(m.watchedAt).toLocaleDateString("fr-FR")}` : ""}${(m.watchCount||0) > 1 ? ` <span class="status-chip">🔁 vu ${m.watchCount} fois</span>` : ""}</div>
+        ${(m.genres||[]).length ? `<div class="sub" style="margin-top:3px;">${m.genres.slice(0,4).map(g=>`<span class="status-chip">${esc(g)}</span>`).join(" ")}</div>` : ""}
+        <p>${esc(m.overview || "")}</p>
+        <div class="modal-actions">
+          <button class="btn" onclick="toggleMovieWatched(${id})">${m.watched ? "Marquer à voir" : "Marquer vu"}</button>
+          ${m.watched ? `<button class="btn ghost" onclick="rewatchMovie(${id})">🔁 Revu (+1)</button>` : ""}
+          <button class="btn heart ${m.favorite?"on":""}" onclick="toggleFav('movie',${id},this)">${m.favorite?"❤️":"🤍"} Favori</button>
+          <button class="btn ghost" onclick="openListPicker('movie',${id})">+ Liste</button>
+          <span id="trailer-slot"></span>
+          <button class="btn danger" onclick="removeMovie(${id})">Retirer</button>
+        </div>
+      </div>
+    </div>
+    ${ratingBlock("movie", id, m.rating)}
+    ${reviewBlock("movie", id, m.review)}
+    ${extrasHTML()}`;
+  $("#overlay").classList.add("open");
+  fillExtras("movie", id);
+};
+window.toggleMovieWatched = function(id){
+  const m = state.movies[id];
+  m.watched = !m.watched;
+  m.watchedAt = m.watched ? Date.now() : null;
+  m.watchCount = m.watched ? Math.max(1, m.watchCount || 0) : 0;
+  saveState(); openMovie(id); render();
+};
+window.rewatchMovie = function(id){
+  const m = state.movies[id];
+  m.watchCount = (m.watchCount || 1) + 1;
+  m.watchedAt = Date.now();
+  saveState(); openMovie(id); render();
+  toast(`« ${m.title} » — ${m.watchCount}ᵉ visionnage noté 🔁`);
+};
+window.removeMovie = function(id){
+  if (!confirm("Retirer ce film ?")) return;
+  delete state.movies[id];
+  for (const l of Object.values(state.lists)) l.items = l.items.filter(it => !(it.type==="movie" && it.id===id));
+  saveState(); closeModal(); render(); toast("Film retiré");
+};
+
+function closeModal(){ $("#overlay").classList.remove("open"); }
+$("#modal-close").addEventListener("click", closeModal);
+$("#overlay").addEventListener("click", e => { if (e.target === e.currentTarget) closeModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape"){ closeModal(); closePicker(); } });
+
+/* ---------- Panneaux ---------- */
+$("#btn-import").addEventListener("click", () => {
+  $("#import-panel").classList.toggle("hidden");
+  $("#settings-panel").classList.add("hidden");
+});
+$("#btn-settings").addEventListener("click", () => {
+  $("#settings-panel").classList.toggle("hidden");
+  $("#import-panel").classList.add("hidden");
+  $("#settings-key").value = state.apiKey;
+  updateGhStatus();
+});
+$("#settings-save").addEventListener("click", () => {
+  state.apiKey = $("#settings-key").value.trim(); saveState(); toast("Clé enregistrée");
+});
+$("#btn-wipe").addEventListener("click", async () => {
+  if (confirm("Tout effacer ? (séries, films, listes, clé API — la synchro sera déconnectée, le Gist GitHub n'est pas supprimé)")){
+    state = { apiKey:"", shows:{}, movies:{}, lists:{} };
+    ghToken = ""; gistId = "";
+    await store.set("cinelog-gh-token", "");
+    await store.set("cinelog-gist-id", "");
+    await store.set("cinelog-state", JSON.stringify(state));
+    location.reload();
+  }
+});
+
+/* ---------- Export / restauration JSON ---------- */
+$("#btn-export-json").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "cinelog-sauvegarde.json";
+  a.click();
+});
+$("#btn-import-json").addEventListener("click", () => $("#json-input").click());
+$("#json-input").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if (data.shows || data.movies || data.lists){
+      state.shows = Object.assign(state.shows, data.shows || {});
+      state.movies = Object.assign(state.movies, data.movies || {});
+      state.lists = Object.assign(state.lists, data.lists || {});
+      if (data.apiKey && !state.apiKey) state.apiKey = data.apiKey;
+      saveState(); render(); toast("Sauvegarde restaurée");
+    } else toast("Fichier non reconnu");
+  }catch(err){ toast("JSON invalide"); }
+});
+
+/* ---------- Import CSV TV Time ---------- */
+const drop = $("#drop-zone");
+drop.addEventListener("click", () => $("#file-input").click());
+["dragover","dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
+drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+$("#file-input").addEventListener("change", e => handleFiles(e.target.files));
+
+function parseCSV(text){
+  const rows = []; let row = [], cell = "", inQ = false;
+  for (let i=0; i<text.length; i++){
+    const c = text[i];
+    if (inQ){
+      if (c === '"'){ if (text[i+1] === '"'){ cell+='"'; i++; } else inQ = false; }
+      else cell += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ','){ row.push(cell); cell=""; }
+      else if (c === '\n'){ row.push(cell); rows.push(row); row=[]; cell=""; }
+      else if (c === '\r'){ /* ignore */ }
+      else cell += c;
+    }
+  }
+  if (cell !== "" || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r => r.length > 1 || (r[0]||"").trim() !== "");
+}
+function findCol(headers, candidates){
+  const h = headers.map(x => x.toLowerCase().trim());
+  for (const c of candidates){
+    const i = h.findIndex(x => x === c || x.includes(c));
+    if (i !== -1) return i;
+  }
+  return -1;
+}
+function log(msg){
+  const el = $("#import-log");
+  el.classList.add("show");
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+async function handleFiles(files){
+  if (!files.length) return;
+  $("#import-log").textContent = ""; $("#import-log").classList.add("show");
+  const showEpisodes = new Map();
+  const movieNames = new Set();
+
+  for (const f of files){
+    log(`📄 Lecture de ${f.name}…`);
+    const rows = parseCSV(await f.text());
+    if (rows.length < 2){ log("   (fichier vide, ignoré)"); continue; }
+    const headers = rows[0];
+    const iShow = findCol(headers, ["tv_show_name","show_name","series_name","show","series","tv show","nom de la série","name"]);
+    const iSeason = findCol(headers, ["season_number","season","saison"]);
+    const iEp = findCol(headers, ["episode_number","episode","épisode","number"]);
+    const iMovie = findCol(headers, ["movie_name","movie","film","title","titre"]);
+    const iType = findCol(headers, ["type","entity_type","media_type"]);
+
+    if (iSeason !== -1 && iEp !== -1 && iShow !== -1){
+      let n = 0;
+      for (const r of rows.slice(1)){
+        const name = (r[iShow]||"").trim();
+        const s = parseInt(r[iSeason]), e = parseInt(r[iEp]);
+        if (!name || isNaN(s) || isNaN(e) || s === 0) continue;
+        if (!showEpisodes.has(name)) showEpisodes.set(name, new Set());
+        showEpisodes.get(name).add(`s${s}e${e}`);
+        n++;
+      }
+      log(`   → ${n} épisodes vus détectés (${showEpisodes.size} séries au total)`);
+    } else if (iMovie !== -1){
+      let n = 0;
+      for (const r of rows.slice(1)){
+        const name = (r[iMovie]||"").trim();
+        if (!name) continue;
+        if (iType !== -1){
+          const t = (r[iType]||"").toLowerCase();
+          if (t && !t.includes("movie") && !t.includes("film")) continue;
+        }
+        movieNames.add(name); n++;
+      }
+      log(`   → ${n} films détectés`);
+    } else {
+      log(`   ⚠ Colonnes non reconnues : ${headers.join(", ")}`);
+      log(`   (envoie-moi ce fichier, on adaptera l'importeur !)`);
+    }
+  }
+
+  const totalShows = showEpisodes.size, totalMovies = movieNames.size;
+  if (!totalShows && !totalMovies){ log("Rien à importer."); return; }
+  log(`\n🔍 Association TMDB : ${totalShows} séries, ${totalMovies} films…`);
+
+  const unmatched = [];
+  let done = 0;
+  for (const [name, eps] of showEpisodes){
+    try{
+      const res = await tmdb("/search/tv", { query: name });
+      const hit = (res.results||[])[0];
+      if (!hit){ unmatched.push("Série : " + name); }
+      else {
+        const show = await addShowSilent(hit.id);
+        for (const key of eps) show.watched[key] = show.watched[key] || Date.now();
+      }
+    }catch(e){ unmatched.push("Série : " + name + " (erreur)"); }
+    done++;
+    if (done % 10 === 0) log(`   … ${done}/${totalShows + totalMovies}`);
+    await new Promise(r => setTimeout(r, 60));
+  }
+  for (const name of movieNames){
+    try{
+      const res = await tmdb("/search/movie", { query: name });
+      const hit = (res.results||[])[0];
+      if (!hit){ unmatched.push("Film : " + name); }
+      else if (!state.movies[hit.id]){ await addMovieSilent(hit.id, true); }
+    }catch(e){ unmatched.push("Film : " + name + " (erreur)"); }
+    done++;
+    if (done % 10 === 0) log(`   … ${done}/${totalShows + totalMovies}`);
+    await new Promise(r => setTimeout(r, 60));
+  }
+
+  saveState(); render();
+  log(`\n✅ Import terminé !`);
+  if (unmatched.length){
+    log(`\n${unmatched.length} titre(s) non trouvé(s) sur TMDB :`);
+    unmatched.forEach(u => log("   • " + u));
+    log("Tu peux les ajouter à la main via la recherche.");
+  }
+  toast("Import terminé !");
+}
+async function addShowSilent(id){
+  if (state.shows[id]) return state.shows[id];
+  const d = await tmdb(`/tv/${id}`);
+  state.shows[id] = {
+    id, name:d.name, poster:d.poster_path, date:d.first_air_date, overview:d.overview,
+    seasons: buildSeasons(d), watched:{}, addedAt:Date.now(),
+    tmdbStatus:d.status, nextEp: d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null,
+    detailsAt: Date.now(), genres:(d.genres||[]).map(g=>g.name),
+    userStatus:null, rating:0, favorite:false, review:"", rewatches:0
+  };
+  return state.shows[id];
+}
+async function addMovieSilent(id, watched){
+  const d = await tmdb(`/movie/${id}`);
+  state.movies[id] = {
+    id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview,
+    watched, watchedAt: watched ? Date.now() : null, addedAt:Date.now(),
+    genres:(d.genres||[]).map(g=>g.name), watchCount: watched ? 1 : 0,
+    rating:0, favorite:false, review:""
+  };
+  return state.movies[id];
+}
+
+/* ---------- Setup / démarrage ---------- */
+$("#setup-save").addEventListener("click", async () => {
+  const key = $("#setup-key").value.trim();
+  if (!key){ toast("Colle ta clé API d'abord"); return; }
+  state.apiKey = key;
+  try{
+    await tmdb("/configuration");
+    saveState();
+    $("#setup").classList.add("hidden");
+    $("#app").classList.remove("hidden");
+    updateNav(); render();
+  }catch(e){
+    toast("Clé refusée par TMDB — vérifie que c'est bien la clé v3");
+    state.apiKey = "";
+  }
+});
+$("#setup-key").addEventListener("keydown", e => { if (e.key === "Enter") $("#setup-save").click(); });
+
+(async function init(){
+  await loadState();
+  await loadSyncConfig();
+  bindSyncUI();
+  for (const s of Object.values(state.shows)){
+    if (s.rating === undefined) Object.assign(s, {userStatus:null, rating:0, favorite:false, review:"", tmdbStatus:null, nextEp:null, detailsAt:0});
+    if (s.rewatches === undefined) s.rewatches = 0;
+    if (s.seasons && s.seasons["0"]) delete s.seasons["0"]; // plus de "Spéciaux"
+    for (const k of Object.keys(s.watched || {})) if (k.startsWith("s0e")) delete s.watched[k];
+  }
+  for (const m of Object.values(state.movies)){
+    if (m.rating === undefined) Object.assign(m, {rating:0, favorite:false, review:"", watchedAt:null});
+    if (m.watchCount === undefined) m.watchCount = m.watched ? 1 : 0;
+  }
+  if (state.apiKey){
+    $("#app").classList.remove("hidden");
+    updateNav(); render();
+    if (ghToken && gistId){
+      setSync("busy", "Synchronisation…");
+      await syncNow(); // récupère la version distante si elle est plus récente
+    }
+    backfillGenres(); // complète les genres des anciens éléments, en arrière-plan
+    backgroundRefresh(); // détecte nouvelles saisons / épisodes, en arrière-plan
+  } else {
+    $("#setup").classList.remove("hidden");
+  }
+})();
+async function backgroundRefresh(){
+  // Met à jour saisons, statut TMDB et prochain épisode de toutes les séries
+  // non abandonnées (cache 12 h, donc quasi gratuit en appels API).
+  const shows = Object.values(state.shows).filter(s => effectiveStatus(s) !== "dropped");
+  let changed = false;
+  for (const s of shows){
+    const before = JSON.stringify(s.seasons) + s.tmdbStatus;
+    await refreshShowDetails(s);
+    if (JSON.stringify(s.seasons) + s.tmdbStatus !== before) changed = true;
+    await new Promise(r => setTimeout(r, 60));
+  }
+  if (changed){
+    render();
+    toast("Nouveautés détectées — bibliothèque mise à jour 🔄");
+  }
+}
+</script>
+</body>
+</html>
