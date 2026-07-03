@@ -111,14 +111,14 @@
     .modal-head > div{width:100%; min-width:0;}
     .modal-head h2{font-size:20px; padding-right:0; text-align:center;}
     .modal-head .sub{justify-content:center;}
-    .modal-head p{max-height:110px;}
-    /* Boutons d'action : grille pleine largeur, faciles à toucher */
+    .modal-head p{max-height:none;}
+    /* Actions épurées : sélecteur + bouton principal pleine largeur, icônes centrées */
     .modal-head .modal-actions{
-      display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px;
+      display:flex; flex-direction:column; gap:8px; margin-top:14px; align-items:stretch;
     }
-    .modal-head .modal-actions select.status-select{grid-column:1 / -1; padding:11px 12px;}
-    .modal-head .modal-actions .btn{padding:11px 10px; text-align:center;}
-    .modal-head .modal-actions #trailer-slot{display:contents;}
+    .modal-head .modal-actions select.status-select{padding:11px 12px;}
+    .modal-head .modal-actions .btn{padding:12px 10px; text-align:center;}
+    .modal-head .modal-actions .act-row{flex-direction:row; justify-content:center; gap:10px; margin-top:2px;}
     .modal-body{padding:0 14px 16px;}
     .block{padding:14px;}
     .season-head{padding:12px 14px;}
@@ -278,6 +278,21 @@
   .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--danger);}
   .btn.heart{background:transparent; border:1px solid var(--line); font-size:16px; padding:7px 12px;}
   .btn.heart.on{border-color:#ff8fb8; color:#ff8fb8;}
+  .act-row{display:flex; gap:8px; align-items:center;}
+  .act-ico{
+    width:42px; height:42px; border-radius:12px; display:grid; place-items:center;
+    background:var(--surface2); border:1px solid var(--line); color:var(--muted);
+    transition:all .15s;
+  }
+  .act-ico svg{width:19px; height:19px;}
+  .act-ico:hover{color:var(--text); border-color:var(--accent);}
+  .act-ico.on{color:#ff8fb8; border-color:#ff8fb8;}
+  .act-ico.on svg{fill:currentColor;}
+  .act-ico.danger{color:var(--danger);}
+  .act-ico.danger:hover{border-color:var(--danger);}
+  .genres-line{color:var(--muted); font-size:12.5px; margin-top:5px;}
+  .ovw{cursor:pointer; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;}
+  .ovw.open{-webkit-line-clamp:99;}
   .close-x{position:absolute; top:14px; right:14px; z-index:2;}
 
   .block{border-top:1px solid var(--line); padding:16px 22px;}
@@ -482,7 +497,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-2</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-3</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -933,6 +948,13 @@ const SWAP_ICONS = {
   series: svgIcon('<rect x="3" y="6" width="18" height="12.5" rx="2"/><path d="M9 21h6"/>'),
   movies: svgIcon('<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 9h18M7.5 4.5L10 9M13 4.5L15.5 9"/>')
 };
+const ACT_ICONS = {
+  heart: svgIcon('<path d="M12 20s-7.2-4.6-9.2-9.1C1.6 8.1 3.7 5 6.9 5c2 0 3.4 1.2 5.1 3.1C13.7 6.2 15.1 5 17.1 5c3.2 0 5.3 3.1 4.1 5.9C19.2 15.4 12 20 12 20z"/>'),
+  list: svgIcon('<path d="M4 6.5h10M4 12h10M4 17.5h6M17 14.5v6M14 17.5h6"/>'),
+  play: svgIcon('<path d="M8 5.5v13l11-6.5z"/>'),
+  trash: svgIcon('<path d="M4.5 7h15M9.5 7V5h5v2M7 7l1 13.5h8L17 7M10.2 10.5v6.5M13.8 10.5v6.5"/>'),
+  redo: svgIcon('<path d="M20 12a8 8 0 1 1-2.4-5.7M20 3.5V9h-5.5"/>')
+};
 function updateNav(){
   $("#swap-icon").innerHTML = SWAP_ICONS[mode === "series" ? "series" : "movies"];
   $("#swap-label").textContent = mode === "series" ? "Séries" : "Films";
@@ -1301,11 +1323,11 @@ window.openPreview = async function(kind, id){
         <div style="min-width:0;">
           <h2>${esc(title)}</h2>
           <div class="sub">${year(date)}${extra ? " · " + extra : ""}</div>
-          ${genres.length ? `<div class="sub" style="margin-top:3px;">${genres.slice(0,4).map(g=>`<span class="status-chip">${esc(g)}</span>`).join(" ")}</div>` : ""}
-          <p>${esc(d.overview || "Pas de synopsis disponible.")}</p>
+          ${genres.length ? `<div class="genres-line">${genres.slice(0,3).map(esc).join(" · ")}</div>` : ""}
+          <p class="ovw" onclick="this.classList.toggle('open')">${esc(d.overview || "Pas de synopsis disponible.")}</p>
           <div class="modal-actions">
             ${actions}
-            <span id="trailer-slot"></span>
+            <div class="act-row"><span id="trailer-slot" style="display:contents;"></span></div>
           </div>
         </div>
       </div>
@@ -1535,7 +1557,6 @@ window.toggleFav = function(type, id, btn){
   const obj = type === "tv" ? state.shows[id] : state.movies[id];
   obj.favorite = !obj.favorite; saveState();
   btn.classList.toggle("on", obj.favorite);
-  btn.textContent = obj.favorite ? "❤️ Favori" : "🤍 Favori";
   render();
 };
 
@@ -1601,7 +1622,7 @@ async function fillExtras(type, id){
   }
   const trailerSlot = document.querySelector("#trailer-slot");
   if (trailerSlot && x.trailer){
-    trailerSlot.innerHTML = `<a class="btn ghost" href="https://www.youtube.com/watch?v=${x.trailer.key}" target="_blank" rel="noopener">▶ Bande-annonce</a>`;
+    trailerSlot.innerHTML = `<a class="act-ico" title="Bande-annonce" href="https://www.youtube.com/watch?v=${x.trailer.key}" target="_blank" rel="noopener">${ACT_ICONS.play}</a>`;
   }
 }
 
@@ -1615,21 +1636,23 @@ window.openShow = async function(id){
       ${posterOrFallback(s.poster, s.name)}
       <div style="min-width:0;">
         <h2>${esc(s.name)}</h2>
-        <div class="sub">${year(s.date)} · ${p.seen}/${p.total} ép. ${tmdbStatusChip(s.tmdbStatus)}${(s.rewatches||0) ? ` <span class="status-chip">🔁 vu ${s.rewatches + (st==="completed"?1:0)} fois</span>` : ""}</div>
-        ${(s.genres||[]).length ? `<div class="sub" style="margin-top:3px;">${s.genres.slice(0,4).map(g=>`<span class="status-chip">${esc(g)}</span>`).join(" ")}</div>` : ""}
-        <p>${esc(s.overview || "")}</p>
+        <div class="sub">${year(s.date)} · ${p.seen}/${p.total} ép. ${tmdbStatusChip(s.tmdbStatus)}${(s.rewatches||0) ? ` <span class="status-chip">vu ${s.rewatches + (st==="completed"?1:0)} fois</span>` : ""}</div>
+        ${(s.genres||[]).length ? `<div class="genres-line">${s.genres.slice(0,3).map(esc).join(" · ")}</div>` : ""}
+        <p class="ovw" onclick="this.classList.toggle('open')">${esc(s.overview || "")}</p>
         <div class="modal-actions">
           <select class="status-select" onchange="setShowStatus(${id}, this.value)">
             <option value="" ${!s.userStatus?"selected":""}>Statut auto (${{watching:"en cours",planned:"à commencer",completed:"terminée"}[st] || "auto"})</option>
-            <option value="paused" ${s.userStatus==="paused"?"selected":""}>⏸ En pause</option>
-            <option value="dropped" ${s.userStatus==="dropped"?"selected":""}>✋ Abandonnée</option>
+            <option value="paused" ${s.userStatus==="paused"?"selected":""}>En pause</option>
+            <option value="dropped" ${s.userStatus==="dropped"?"selected":""}>Abandonnée</option>
           </select>
-          ${st === "completed" ? `<button class="btn ghost" onclick="restartShow(${id})">🔁 Recommencer</button>`
-            : `<button class="btn ghost" onclick="markAllWatched(${id})">✓ Tout marquer vu</button>`}
-          <button class="btn heart ${s.favorite?"on":""}" onclick="toggleFav('tv',${id},this)">${s.favorite?"❤️":"🤍"} Favori</button>
-          <button class="btn ghost" onclick="openListPicker('tv',${id})">+ Liste</button>
-          <span id="trailer-slot"></span>
-          <button class="btn danger" onclick="removeShow(${id})">Retirer</button>
+          ${st === "completed" ? `<button class="btn ghost" onclick="restartShow(${id})">Recommencer la série</button>`
+            : `<button class="btn ghost" onclick="markAllWatched(${id})">Tout marquer vu</button>`}
+          <div class="act-row">
+            <button class="act-ico ${s.favorite?"on":""}" title="Favori" onclick="toggleFav('tv',${id},this)">${ACT_ICONS.heart}</button>
+            <button class="act-ico" title="Ajouter à une liste" onclick="openListPicker('tv',${id})">${ACT_ICONS.list}</button>
+            <span id="trailer-slot" style="display:contents;"></span>
+            <button class="act-ico danger" title="Retirer de ma bibliothèque" onclick="removeShow(${id})">${ACT_ICONS.trash}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1783,16 +1806,18 @@ window.openMovie = function(id){
       ${posterOrFallback(m.poster, m.title)}
       <div style="min-width:0;">
         <h2>${esc(m.title)}</h2>
-        <div class="sub">${year(m.date)}${future ? ` <span class="status-chip ok">Sortie ${countdownLabel(daysUntil(m.date))}</span>` : ""}${m.watched && m.watchedAt ? ` · vu le ${new Date(m.watchedAt).toLocaleDateString("fr-FR")}` : ""}${(m.watchCount||0) > 1 ? ` <span class="status-chip">🔁 vu ${m.watchCount} fois</span>` : ""}</div>
-        ${(m.genres||[]).length ? `<div class="sub" style="margin-top:3px;">${m.genres.slice(0,4).map(g=>`<span class="status-chip">${esc(g)}</span>`).join(" ")}</div>` : ""}
-        <p>${esc(m.overview || "")}</p>
+        <div class="sub">${year(m.date)}${future ? ` <span class="status-chip ok">Sortie ${countdownLabel(daysUntil(m.date))}</span>` : ""}${m.watched && m.watchedAt ? ` · vu le ${new Date(m.watchedAt).toLocaleDateString("fr-FR")}` : ""}${(m.watchCount||0) > 1 ? ` <span class="status-chip">vu ${m.watchCount} fois</span>` : ""}</div>
+        ${(m.genres||[]).length ? `<div class="genres-line">${m.genres.slice(0,3).map(esc).join(" · ")}</div>` : ""}
+        <p class="ovw" onclick="this.classList.toggle('open')">${esc(m.overview || "")}</p>
         <div class="modal-actions">
           <button class="btn" onclick="toggleMovieWatched(${id})">${m.watched ? "Marquer à voir" : "Marquer vu"}</button>
-          ${m.watched ? `<button class="btn ghost" onclick="rewatchMovie(${id})">🔁 Revu (+1)</button>` : ""}
-          <button class="btn heart ${m.favorite?"on":""}" onclick="toggleFav('movie',${id},this)">${m.favorite?"❤️":"🤍"} Favori</button>
-          <button class="btn ghost" onclick="openListPicker('movie',${id})">+ Liste</button>
-          <span id="trailer-slot"></span>
-          <button class="btn danger" onclick="removeMovie(${id})">Retirer</button>
+          <div class="act-row">
+            ${m.watched ? `<button class="act-ico" title="Revu (+1 visionnage)" onclick="rewatchMovie(${id})">${ACT_ICONS.redo}</button>` : ""}
+            <button class="act-ico ${m.favorite?"on":""}" title="Favori" onclick="toggleFav('movie',${id},this)">${ACT_ICONS.heart}</button>
+            <button class="act-ico" title="Ajouter à une liste" onclick="openListPicker('movie',${id})">${ACT_ICONS.list}</button>
+            <span id="trailer-slot" style="display:contents;"></span>
+            <button class="act-ico danger" title="Retirer de ma bibliothèque" onclick="removeMovie(${id})">${ACT_ICONS.trash}</button>
+          </div>
         </div>
       </div>
     </div>
