@@ -507,7 +507,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-7</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-9</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -2115,24 +2115,127 @@ function log(msg){
   el.textContent += msg + "\n";
   el.scrollTop = el.scrollHeight;
 }
+/* Fichiers de l'export TV Time à ignorer : notes, réactions, commentaires,
+   technique… Leurs colonnes ressemblent à de l'historique mais n'en sont pas. */
+const IMPORT_IGNORE = [
+  /^ratings-/i, /^emotions-/i, /comment/i, /notification/i, /recommend/i,
+  /character/i, /leaderboard/i, /badge/i, /^stats-/i, /device/i, /token/i,
+  /tracking-prod-count/i, /tracking-deployment/i, /seen_episode_source/i,
+  /followed_tv_show_source/i, /connection/i, /ip_address/i, /install/i,
+  /appsflyer/i, /gdpr/i, /^auth-/i, /friend/i, /^lists-prod/i, /^user_/i,
+  /show_seen_episode_latest/i, /show_addiction/i, /ad_identifier/i,
+  /access_token/i, /emotion/i, /where-to-watch/i, /customization/i,
+  /webhook/i, /^user\.csv$/i
+];
+const IMPORT_ALLOW = [/user_show_special_status/i, /user_tv_show_data/i];
+function cleanTitle(name){
+  // "Reign (2013)" → titre "Reign" + année 2013 (améliore le matching TMDB)
+  const m = name.match(/^(.*)\s+\((\d{4})\)\s*$/);
+  return m ? { title: m[1].trim(), year: m[2] } : { title: name, year: null };
+}
 async function handleFiles(files){
   if (!files.length) return;
   $("#import-log").textContent = ""; $("#import-log").classList.add("show");
-  const showEpisodes = new Map();
-  const movieNames = new Set();
+
+  const showEpisodes = new Map();   // nom → Set("sXeY")
+  const plannedShows = new Set();   // séries suivies sans épisode vu (→ à commencer)
+  const showFavorites = new Set();  // séries favorites (❤️)
+  const showRatings = new Map();    // nom → note 1-5
+  const moviesWatched = new Map();  // nom → {count, year}
+  const moviesToWatch = new Map();  // nom → {year}
 
   for (const f of files){
+    if (!IMPORT_ALLOW.some(rx => rx.test(f.name)) && IMPORT_IGNORE.some(rx => rx.test(f.name))){
+      log(`⏭ ${f.name} ignoré (notes/réactions/technique — pas de l'historique)`);
+      continue;
+    }
     log(`📄 Lecture de ${f.name}…`);
     const rows = parseCSV(await f.text());
     if (rows.length < 2){ log("   (fichier vide, ignoré)"); continue; }
-    const headers = rows[0];
-    const iShow = findCol(headers, ["tv_show_name","show_name","series_name","show","series","tv show","nom de la série","name"]);
-    const iSeason = findCol(headers, ["season_number","season","saison"]);
-    const iEp = findCol(headers, ["episode_number","episode","épisode","number"]);
-    const iMovie = findCol(headers, ["movie_name","movie","film","title","titre"]);
-    const iType = findCol(headers, ["type","entity_type","media_type"]);
+    const headers = rows[0].map(h => h.toLowerCase().trim());
+    const col = name => headers.indexOf(name);
 
-    if (iSeason !== -1 && iEp !== -1 && iShow !== -1){
+    /* ---- Format spécial : tracking-prod-records.csv (films + épisodes + watchlist) ---- */
+    if (col("type") !== -1 && col("movie_name") !== -1 && col("series_name") !== -1){
+      const iT = col("type"), iMv = col("movie_name"), iSr = col("series_name");
+      const iS = col("season_number"), iE = col("episode_number");
+      const iRel = col("release_date");
+      let nEp = 0, nMv = 0, nTw = 0, nRw = 0;
+      for (const r of rows.slice(1)){
+        const type = (r[iT]||"").trim();
+        const movie = (r[iMv]||"").trim();
+        const series = (r[iSr]||"").trim();
+        if (movie){
+          const year = (r[iRel]||"").slice(0,4) || null;
+          if (type === "watch"){
+            const e = moviesWatched.get(movie) || {count:0, year};
+            e.count++; if (year) e.year = year;
+            moviesWatched.set(movie, e); nMv++;
+          } else if (type === "rewatch"){
+            const e = moviesWatched.get(movie) || {count:1, year};
+            e.count++; moviesWatched.set(movie, e); nRw++;
+          } else if (type === "towatch"){
+            if (!moviesToWatch.has(movie)) moviesToWatch.set(movie, {year});
+            nTw++;
+          }
+          // type "follow" : redondant, ignoré
+        } else if (series && (type === "watch" || type === "rewatch")){
+          const s = parseInt(r[iS]), e = parseInt(r[iE]);
+          if (isNaN(s) || isNaN(e) || s === 0) continue;
+          if (!showEpisodes.has(series)) showEpisodes.set(series, new Set());
+          showEpisodes.get(series).add(`s${s}e${e}`);
+          nEp++;
+        }
+      }
+      log(`   → ${nMv} films vus, ${nTw} films à voir, ${nRw} re-visionnages, ${nEp} épisodes`);
+      continue;
+    }
+    /* ---- Statuts spéciaux : user_show_special_status.csv (favoris, « pour plus tard ») ---- */
+    if (col("status") !== -1 && col("tv_show_name") !== -1 && col("season_number") === -1 && col("episode_number") === -1){
+      const iN = col("tv_show_name"), iSt = col("status");
+      let nf = 0, nl = 0;
+      for (const r of rows.slice(1)){
+        const name = (r[iN]||"").trim(), st = (r[iSt]||"").trim();
+        if (!name) continue;
+        if (st === "favorite"){ showFavorites.add(name); plannedShows.add(name); nf++; }
+        else if (st === "for_later"){ plannedShows.add(name); nl++; }
+      }
+      log(`   → ${nf} série(s) favorite(s), ${nl} « pour plus tard »`);
+      continue;
+    }
+    /* ---- Favoris : user_tv_show_data.csv (is_favorited) ---- */
+    if (col("is_favorited") !== -1 && col("tv_show_name") !== -1){
+      const iN = col("tv_show_name"), iF = col("is_favorited");
+      let n = 0;
+      for (const r of rows.slice(1)){
+        const name = (r[iN]||"").trim();
+        if (name && (r[iF]||"").trim() === "1"){ showFavorites.add(name); n++; }
+      }
+      log(`   → ${n} série(s) favorite(s)`);
+      continue;
+    }
+    /* ---- Notes de séries : tv_show_rate.csv ---- */
+    if (col("tv_show_name") !== -1 && col("rating") !== -1){
+      const iN = col("tv_show_name"), iR = col("rating");
+      let n = 0;
+      for (const r of rows.slice(1)){
+        const name = (r[iN]||"").trim();
+        const rate = parseFloat(r[iR]);
+        if (!name || isNaN(rate)) continue;
+        showRatings.set(name, Math.max(1, Math.min(5, Math.round(rate))));
+        n++;
+      }
+      log(`   → ${n} notes de séries`);
+      continue;
+    }
+    /* ---- Formats génériques ---- */
+    const iShow = findCol(rows[0], ["tv_show_name","show_name","series_name","show","series","tv show","nom de la série"]);
+    const iSeason = findCol(rows[0], ["season_number","season","saison"]);
+    const iEp = findCol(rows[0], ["episode_number","episode","épisode"]);
+    const iMovie = findCol(rows[0], ["movie_name","movie","film"]);
+
+    if (iShow !== -1 && iSeason !== -1 && iEp !== -1){
+      // Historique d'épisodes vus (seen_episode.csv, rewatched_episode.csv…)
       let n = 0;
       for (const r of rows.slice(1)){
         const name = (r[iShow]||"").trim();
@@ -2142,59 +2245,83 @@ async function handleFiles(files){
         showEpisodes.get(name).add(`s${s}e${e}`);
         n++;
       }
-      log(`   → ${n} épisodes vus détectés (${showEpisodes.size} séries au total)`);
+      log(`   → ${n} épisodes vus (${showEpisodes.size} séries au total)`);
+    } else if (iShow !== -1){
+      // Liste de séries suivies sans épisodes (followed_tv_show.csv) → à commencer
+      let n = 0;
+      for (const r of rows.slice(1)){
+        const name = (r[iShow]||"").trim();
+        if (name){ plannedShows.add(name); n++; }
+      }
+      log(`   → ${n} séries suivies (seront ajoutées, à commencer si aucun épisode vu)`);
     } else if (iMovie !== -1){
       let n = 0;
       for (const r of rows.slice(1)){
         const name = (r[iMovie]||"").trim();
         if (!name) continue;
-        if (iType !== -1){
-          const t = (r[iType]||"").toLowerCase();
-          if (t && !t.includes("movie") && !t.includes("film")) continue;
-        }
-        movieNames.add(name); n++;
+        if (!moviesWatched.has(name)) moviesWatched.set(name, {count:1, year:null});
+        n++;
       }
-      log(`   → ${n} films détectés`);
+      log(`   → ${n} films vus`);
     } else {
-      log(`   ⚠ Colonnes non reconnues : ${headers.join(", ")}`);
-      log(`   (envoie-moi ce fichier, on adaptera l'importeur !)`);
+      log(`   ⚠ Colonnes non reconnues : ${rows[0].join(", ")}`);
     }
   }
 
-  const totalShows = showEpisodes.size, totalMovies = movieNames.size;
+  // Fusion : les séries suivies déjà couvertes par des épisodes n'ont pas besoin d'ajout séparé
+  const allShowNames = new Set([...showEpisodes.keys(), ...plannedShows, ...showRatings.keys(), ...showFavorites]);
+  const allMovieNames = new Set([...moviesWatched.keys(), ...moviesToWatch.keys()]);
+  const totalShows = allShowNames.size, totalMovies = allMovieNames.size;
   if (!totalShows && !totalMovies){ log("Rien à importer."); return; }
   log(`\n🔍 Association TMDB : ${totalShows} séries, ${totalMovies} films…`);
+  log(`   (avec une grosse bibliothèque, ça peut prendre plusieurs minutes — laisse la page ouverte)`);
 
   const unmatched = [];
   let done = 0;
-  for (const [name, eps] of showEpisodes){
+  const tick = () => { done++; if (done % 20 === 0) log(`   … ${done}/${totalShows + totalMovies}`); };
+
+  for (const name of allShowNames){
     try{
-      const res = await tmdb("/search/tv", { query: name });
+      const { title, year } = cleanTitle(name);
+      const params = { query: title };
+      if (year) params.first_air_date_year = year;
+      let res = await tmdb("/search/tv", params);
+      if (!(res.results||[]).length && year) res = await tmdb("/search/tv", { query: title });
       const hit = (res.results||[])[0];
       if (!hit){ unmatched.push("Série : " + name); }
       else {
         const show = await addShowSilent(hit.id);
-        for (const key of eps) show.watched[key] = show.watched[key] || Date.now();
+        const eps = showEpisodes.get(name);
+        if (eps) for (const key of eps) show.watched[key] = show.watched[key] || Date.now();
+        const rating = showRatings.get(name);
+        if (rating && !show.rating) show.rating = rating;
+        if (showFavorites.has(name)) show.favorite = true;
       }
     }catch(e){ unmatched.push("Série : " + name + " (erreur)"); }
-    done++;
-    if (done % 10 === 0) log(`   … ${done}/${totalShows + totalMovies}`);
+    tick();
     await new Promise(r => setTimeout(r, 60));
   }
-  for (const name of movieNames){
+  for (const name of allMovieNames){
     try{
-      const res = await tmdb("/search/movie", { query: name });
+      const watched = moviesWatched.get(name);
+      const info = watched || moviesToWatch.get(name);
+      const params = { query: name };
+      if (info?.year) params.primary_release_year = info.year;
+      let res = await tmdb("/search/movie", params);
+      if (!(res.results||[]).length && info?.year) res = await tmdb("/search/movie", { query: name });
       const hit = (res.results||[])[0];
       if (!hit){ unmatched.push("Film : " + name); }
-      else if (!state.movies[hit.id]){ await addMovieSilent(hit.id, true); }
+      else if (!state.movies[hit.id]){
+        const m = await addMovieSilent(hit.id, !!watched);
+        if (watched && watched.count > 1) m.watchCount = watched.count;
+      }
     }catch(e){ unmatched.push("Film : " + name + " (erreur)"); }
-    done++;
-    if (done % 10 === 0) log(`   … ${done}/${totalShows + totalMovies}`);
+    tick();
     await new Promise(r => setTimeout(r, 60));
   }
 
   saveState(); render();
-  log(`\n✅ Import terminé !`);
+  log(`\n✅ Import terminé ! ${totalShows - unmatched.filter(u=>u.startsWith("Série")).length} séries et ${totalMovies - unmatched.filter(u=>u.startsWith("Film")).length} films importés.`);
   if (unmatched.length){
     log(`\n${unmatched.length} titre(s) non trouvé(s) sur TMDB :`);
     unmatched.forEach(u => log("   • " + u));
