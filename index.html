@@ -507,7 +507,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-6</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-7</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -998,8 +998,8 @@ function render(){
 }
 /* ---------- Tris & filtres de bibliothèque ---------- */
 const viewOpts = {
-  series: { sort:"recent", genre:"", rating:"" },
-  movies: { sort:"recent", genre:"", rating:"" }
+  series: { sort:"recent", genre:"", rating:"", cat:"" },
+  movies: { sort:"recent", genre:"", rating:"", cat:"" }
 };
 window.setViewOpt = function(key, val){
   viewOpts[mode][key] = val;
@@ -1024,7 +1024,14 @@ function toolbarHTML(pool){
   const o = viewOpts[mode];
   const genres = [...new Set(pool.flatMap(x => x.genres || []))].sort((a,b)=>a.localeCompare(b,"fr"));
   const sel = (v, cur) => v === cur ? "selected" : "";
+  const cats = mode === "series"
+    ? [["","Toutes les catégories"],["watching","En cours"],["planned","À commencer"],["paused","En pause"],["completed","Terminées"],["dropped","Abandonnées"]]
+    : [["","Toutes les catégories"],["towatch","À voir"],["seen","Vus"]];
   return `<div class="toolbar">
+    <span class="lbl">Catégorie</span>
+    <select class="status-select" onchange="setViewOpt('cat', this.value)">
+      ${cats.map(([v,l]) => `<option value="${v}" ${sel(v,o.cat)}>${l}</option>`).join("")}
+    </select>
     <span class="lbl">Trier</span>
     <select class="status-select" onchange="setViewOpt('sort', this.value)">
       <option value="recent" ${sel("recent",o.sort)}>Ajout récent</option>
@@ -1055,15 +1062,18 @@ function renderSeriesLibrary(lib){
     return;
   }
   const shows = applyView(all);
+  const cat = viewOpts.series.cat;
   const by = st => shows.filter(s => effectiveStatus(s) === st);
+  const SECTIONS = [
+    ["watching","En cours"], ["planned","À commencer"], ["paused","En pause"],
+    ["completed","Terminées"], ["dropped","Abandonnées"]
+  ];
   const body = shows.length
-    ? section("En cours", by("watching"), showCard) +
-      section("À commencer", by("planned"), showCard) +
-      section("En pause", by("paused"), showCard) +
-      section("Terminées", by("completed"), showCard) +
-      section("Abandonnées", by("dropped"), showCard)
-    : `<div class="empty">Aucune série ne correspond à ces filtres.</div>`;
-  lib.innerHTML = toolbarHTML(all) + body;
+    ? SECTIONS.filter(([st]) => !cat || st === cat)
+        .map(([st, label]) => section(label, by(st), showCard)).join("")
+    : "";
+  lib.innerHTML = toolbarHTML(all) +
+    (body || `<div class="empty">Aucune série ne correspond à ces filtres.</div>`);
 }
 function renderMoviesLibrary(lib){
   const all = Object.values(state.movies);
@@ -1072,11 +1082,13 @@ function renderMoviesLibrary(lib){
     return;
   }
   const movies = applyView(all);
+  const cat = viewOpts.movies.cat;
   const body = movies.length
-    ? section("À voir", movies.filter(m=>!m.watched), movieCard) +
-      section("Vus", movies.filter(m=>m.watched), movieCard)
-    : `<div class="empty">Aucun film ne correspond à ces filtres.</div>`;
-  lib.innerHTML = toolbarHTML(all) + body;
+    ? ((!cat || cat === "towatch") ? section("À voir", movies.filter(m=>!m.watched), movieCard) : "") +
+      ((!cat || cat === "seen") ? section("Vus", movies.filter(m=>m.watched), movieCard) : "")
+    : "";
+  lib.innerHTML = toolbarHTML(all) +
+    (body || `<div class="empty">Aucun film ne correspond à ces filtres.</div>`);
 }
 function section(label, items, cardFn){
   if (!items.length) return "";
