@@ -497,7 +497,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-3</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-5</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1250,16 +1250,32 @@ async function renderDiscover(lib){
       discoverStrip(nowLabel, d.now, kind) +
       discoverStrip("Les mieux notés de tous les temps", d.top, kind);
 
-    lib.innerHTML = html + `<div id="personal-recos"></div>`;
+    lib.innerHTML =
+      `<div id="personal-recos">${hasLibrary(kind) ? `<div class="empty" style="border:none; padding:14px;">Préparation de tes recommandations…</div>` : ""}</div>`
+      + html;
     fillPersonalRecos(kind); // asynchrone, s'affiche quand prêt
   }catch(e){
     lib.innerHTML = `<div class="empty">Impossible de charger les découvertes — vérifie ta connexion ou ta clé API.</div>`;
   }
 }
+function hideFromDiscover(kind, id){
+  // Masque de Découvrir tout programme déjà entamé, terminé, en pause ou abandonné.
+  // Un titre ajouté mais pas encore commencé reste visible (rappel de watchlist).
+  if (kind === "tv"){
+    const s = state.shows[id];
+    if (!s) return false;
+    return effectiveStatus(s) !== "planned";
+  } else {
+    const m = state.movies[id];
+    if (!m) return false;
+    return !!m.watched;
+  }
+}
 function discoverStrip(label, items, kind){
-  if (!items || !items.length) return "";
+  const visible = (items || []).filter(r => !hideFromDiscover(kind, r.id));
+  if (!visible.length) return "";
   return `<div class="section-label">${label}</div>
-    <div class="strip">${items.map(r => discoverCard(r, kind)).join("")}</div>`;
+    <div class="strip">${visible.map(r => discoverCard(r, kind)).join("")}</div>`;
 }
 function discoverCard(r, kind){
   const title = r.name || r.title;
@@ -1344,32 +1360,114 @@ window.addFromPreview = async function(kind, id, watched){
     if (kind === "tv") openShow(id); else openMovie(id); // bascule sur la fiche complète
   }catch(e){ toast("Impossible d'ajouter — réessaie."); }
 };
+function hasLibrary(kind){
+  return Object.keys(kind === "tv" ? state.shows : state.movies).length > 0;
+}
+const personalCache = {};   // {kind:{at, poolSize, html}}
+const genreMapCache = {};   // {kind:{nomDeGenre: id}}
+async function genreIds(kind){
+  if (genreMapCache[kind]) return genreMapCache[kind];
+  const d = await tmdb(`/genre/${kind}/list`);
+  const m = {};
+  for (const g of d.genres || []) m[g.name] = g.id;
+  genreMapCache[kind] = m;
+  return m;
+}
 async function fillPersonalRecos(kind){
   const box = $("#personal-recos");
   if (!box) return;
-  // graines : favoris > bien notés > activité récente
   const pool = kind === "tv" ? Object.values(state.shows) : Object.values(state.movies);
-  const seeds = [
-    ...pool.filter(x => x.favorite),
-    ...pool.filter(x => !x.favorite && (x.rating||0) >= 4),
-    ...pool.filter(x => !x.favorite && (x.rating||0) < 4)
-      .sort((a,b)=> (b.addedAt||0)-(a.addedAt||0))
-  ].slice(0, 3);
-  if (!seeds.length) return;
-  const have = new Set(pool.map(x => x.id));
+  if (!pool.length){ box.innerHTML = ""; return; }
+
+  // Cache de DONNÉES 30 min (le filtrage, lui, s'applique à chaque affichage)
+  let data = personalCache[kind];
+  if (!data || Date.now() - data.at > 30*60*1000 || data.poolSize !== pool.length){
+    data = await buildPersonalRecoData(kind, pool);
+    personalCache[kind] = data;
+  }
+  const shown = new Set();
+  const keep = r => {
+    if (hideFromDiscover(kind, r.id) || shown.has(r.id)) return false;
+    shown.add(r.id); return true;
+  };
   let html = "";
-  for (const seed of seeds){
-    try{
-      const res = await tmdb(`/${kind}/${seed.id}/recommendations`);
-      const recos = (res.results||[]).filter(r => !have.has(r.id)).slice(0, 10);
-      if (recos.length){
-        html += `<div class="section-label">Parce que tu as ${kind==="tv"?"suivi":"ajouté"} « ${esc(seed.name || seed.title)} »</div>
-          <div class="strip">${recos.map(r => discoverCard(r, kind)).join("")}</div>`;
-      }
-    }catch(e){}
+  const ranked = data.ranked.filter(keep).slice(0, 15);
+  if (ranked.length){
+    html += `<div class="section-label">Recommandé pour toi</div>
+      <div class="strip">${ranked.map(r => discoverCard(r, kind)).join("")}</div>`;
+  }
+  let rows = 0;
+  for (const seed of data.perSeed){
+    if (rows >= 2) break;
+    const list = seed.list.filter(keep).slice(0, 10);
+    if (list.length >= 4){
+      html += `<div class="section-label">Parce que tu as aimé « ${esc(seed.name)} »</div>
+        <div class="strip">${list.map(r => discoverCard(r, kind)).join("")}</div>`;
+      rows++;
+    }
+  }
+  if (data.genre){
+    const list = data.genre.list.filter(keep).slice(0, 12);
+    if (list.length){
+      html += `<div class="section-label">Le meilleur en ${esc(data.genre.label)}</div>
+        <div class="strip">${list.map(r => discoverCard(r, kind)).join("")}</div>`;
+    }
   }
   const stillThere = $("#personal-recos");
   if (stillThere) stillThere.innerHTML = html;
+}
+async function buildPersonalRecoData(kind, pool){
+  const data = { at: Date.now(), poolSize: pool.length, ranked: [], perSeed: [], genre: null };
+  // Graines de goût : favoris > bien notés > activité récente (jusqu'à 6)
+  const seeds = [...pool].sort((a,b) =>
+    ((b.favorite?1:0) - (a.favorite?1:0)) ||
+    ((b.rating||0) - (a.rating||0)) ||
+    ((b.addedAt||0) - (a.addedAt||0))
+  ).slice(0, 6);
+  try{
+    // Toutes les recommandations en PARALLÈLE
+    const results = await Promise.all(
+      seeds.map(s => tmdb(`/${kind}/${s.id}/recommendations`).catch(() => ({results:[]})))
+    );
+    // Agrégation : un titre suggéré par plusieurs graines remonte en tête
+    const agg = new Map();
+    for (const res of results){
+      for (const r of (res.results||[]).slice(0, 12)){
+        if (!r.poster_path) continue;
+        const e = agg.get(r.id) || { item:r, hits:0 };
+        e.hits++;
+        agg.set(r.id, e);
+      }
+    }
+    data.ranked = [...agg.values()]
+      .sort((a,b) => b.hits - a.hits
+        || (b.item.vote_average||0) - (a.item.vote_average||0)
+        || (b.item.popularity||0) - (a.item.popularity||0))
+      .map(e => e.item);
+    data.perSeed = seeds.map((s, i) => ({
+      name: s.name || s.title,
+      list: (results[i].results||[]).filter(r => r.poster_path)
+    }));
+    // Affinité de genre (pondérée favoris/notes)
+    const gCount = {};
+    for (const x of pool){
+      const w = x.favorite ? 3 : ((x.rating||0) >= 4 ? 2 : 1);
+      for (const g of x.genres || []) gCount[g] = (gCount[g]||0) + w;
+    }
+    const topGenre = Object.entries(gCount).sort((a,b)=> b[1]-a[1])[0]?.[0];
+    if (topGenre){
+      const gmap = await genreIds(kind);
+      const gid = gmap[topGenre];
+      if (gid){
+        const d = await tmdb(`/discover/${kind}`, {
+          with_genres: String(gid), sort_by: "popularity.desc",
+          "vote_count.gte": "300", "vote_average.gte": "7"
+        });
+        data.genre = { label: topGenre, list: (d.results||[]).filter(r => r.poster_path) };
+      }
+    }
+  }catch(e){ /* on garde ce qui a pu être construit */ }
+  return data;
 }
 
 /* ---------- Recherche (onglet bibliothèque) ---------- */
