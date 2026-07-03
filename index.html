@@ -209,6 +209,16 @@
 
   /* ---------- Strips (Découvrir) ---------- */
   .strip{display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scrollbar-width:thin;}
+  .prov-chips{display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:10px; scrollbar-width:thin;}
+  .prov-chip{
+    display:flex; align-items:center; gap:8px; flex:0 0 auto;
+    padding:7px 13px; border-radius:99px; font-size:12.5px; font-weight:600;
+    background:var(--surface); border:1px solid var(--line); color:var(--muted);
+    transition:all .15s; white-space:nowrap;
+  }
+  .prov-chip img{width:20px; height:20px; border-radius:5px;}
+  .prov-chip:hover{border-color:var(--accent);}
+  .prov-chip.active{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
   .strip .card{flex:0 0 118px;}
   .strip .card .meta{padding:8px 10px 10px;}
   .result-add{
@@ -497,7 +507,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-5</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.03-6</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1252,8 +1262,12 @@ async function renderDiscover(lib){
 
     lib.innerHTML =
       `<div id="personal-recos">${hasLibrary(kind) ? `<div class="empty" style="border:none; padding:14px;">Préparation de tes recommandations…</div>` : ""}</div>`
+      + `<div class="section-label">Populaire par plateforme</div>
+         <div class="prov-chips" id="prov-chips"></div>
+         <div id="prov-strip"></div>`
       + html;
     fillPersonalRecos(kind); // asynchrone, s'affiche quand prêt
+    loadProviders(kind);     // idem pour les plateformes
   }catch(e){
     lib.innerHTML = `<div class="empty">Impossible de charger les découvertes — vérifie ta connexion ou ta clé API.</div>`;
   }
@@ -1271,6 +1285,56 @@ function hideFromDiscover(kind, id){
     return !!m.watched;
   }
 }
+/* ---------- Populaire par plateforme (Netflix, Disney+, …) ---------- */
+const providerListCache = {};   // {kind: [providers]}
+const providerTrendCache = {};  // {"kind-pid": {at, items}}
+const currentProvider = {};     // {kind: pid}
+async function loadProviders(kind){
+  const box = $("#prov-chips");
+  if (!box) return;
+  try{
+    if (!providerListCache[kind]){
+      const d = await tmdb(`/watch/providers/${kind}`, { watch_region: REGION });
+      const prio = p => p.display_priorities?.[REGION] ?? p.display_priority ?? 999;
+      providerListCache[kind] = (d.results || [])
+        .sort((a,b) => prio(a) - prio(b))
+        .slice(0, 8);
+    }
+    const provs = providerListCache[kind];
+    if (!provs.length){ box.innerHTML = ""; return; }
+    box.innerHTML = provs.map(p =>
+      `<button class="prov-chip" data-pid="${p.provider_id}" onclick="selectProvider('${kind}',${p.provider_id})">
+        ${p.logo_path ? `<img src="${IMG_LOGO + p.logo_path}" alt="">` : ""}${esc(p.provider_name)}
+      </button>`).join("");
+    selectProvider(kind, currentProvider[kind] || provs[0].provider_id);
+  }catch(e){ box.innerHTML = ""; }
+}
+window.selectProvider = async function(kind, pid){
+  currentProvider[kind] = pid;
+  document.querySelectorAll(".prov-chip").forEach(c =>
+    c.classList.toggle("active", +c.dataset.pid === +pid));
+  const strip = $("#prov-strip");
+  if (!strip) return;
+  strip.innerHTML = `<div class="empty" style="border:none; padding:12px;">Chargement…</div>`;
+  const key = kind + "-" + pid;
+  try{
+    if (!providerTrendCache[key] || Date.now() - providerTrendCache[key].at > 30*60*1000){
+      const d = await tmdb(`/discover/${kind}`, {
+        with_watch_providers: String(pid), watch_region: REGION, sort_by: "popularity.desc"
+      });
+      providerTrendCache[key] = { at: Date.now(), items: (d.results||[]).slice(0, 18) };
+    }
+    if (currentProvider[kind] !== pid) return; // l'utilisateur a changé de puce entre-temps
+    const items = providerTrendCache[key].items
+      .filter(r => !hideFromDiscover(kind, r.id) && r.poster_path)
+      .slice(0, 15);
+    strip.innerHTML = items.length
+      ? `<div class="strip">${items.map(r => discoverCard(r, kind)).join("")}</div>`
+      : `<div class="empty" style="border:none; padding:12px;">Rien de nouveau pour toi sur cette plateforme.</div>`;
+  }catch(e){
+    strip.innerHTML = `<div class="empty" style="border:none; padding:12px;">Erreur de chargement.</div>`;
+  }
+};
 function discoverStrip(label, items, kind){
   const visible = (items || []).filter(r => !hideFromDiscover(kind, r.id));
   if (!visible.length) return "";
