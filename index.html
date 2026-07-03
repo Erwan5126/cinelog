@@ -2,7 +2,15 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f13">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CinéLog">
 <title>CinéLog — Séries & Films</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
@@ -30,6 +38,7 @@
     position:sticky; top:0; z-index:50;
     background:rgba(14,15,19,.85); backdrop-filter:blur(12px);
     border-bottom:1px solid var(--line);
+    padding-top:env(safe-area-inset-top); /* mode plein écran PWA (encoche iPhone) */
   }
   .header-inner{
     max-width:1100px; margin:0 auto; padding:12px 20px;
@@ -52,6 +61,48 @@
     transition:all .2s;
   }
   .tab.active{background:var(--accent); color:#0e0f13;}
+  .tab .t-ico{display:none;}
+  /* ---------- Mobile ---------- */
+  @media (max-width:640px){
+    .header-inner{gap:10px; padding:10px 14px; flex-wrap:nowrap;}
+    .wordmark{display:none;}
+    /* La navigation devient une barre fixe en bas, accessible au pouce */
+    .tabs{
+      position:fixed; left:0; right:0; bottom:0; z-index:60;
+      border-radius:0; border:none; border-top:1px solid var(--line);
+      background:rgba(14,15,19,.94); backdrop-filter:blur(14px);
+      padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+      display:flex; justify-content:space-around; gap:2px;
+    }
+    .tab{
+      flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+      padding:7px 2px; border-radius:12px; font-size:10.5px; font-weight:600;
+    }
+    .tab .t-ico{display:block; font-size:19px; line-height:1;}
+    .tab.active{background:var(--accent-soft); color:var(--accent);}
+    main{padding:16px 14px calc(92px + env(safe-area-inset-bottom));}
+    .toolbar{flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch;}
+    .toolbar .lbl{display:none;}
+    .toolbar select{flex:0 0 auto;}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(106px,1fr)); gap:12px;}
+    .searchbar{margin-bottom:16px;}
+    .searchbar input{padding:12px 15px; font-size:16px;} /* 16px évite le zoom auto iOS */
+    .overlay{padding:12px 8px;}
+    .modal-head{padding:16px 14px 12px; gap:12px;}
+    .modal-head img,.modal-head .noposter{width:84px;}
+    .modal-head h2{font-size:18px; padding-right:32px;}
+    .modal-head p{max-height:70px;}
+    .modal-body{padding:0 14px 16px;}
+    .block{padding:14px;}
+    .season-head{padding:12px 14px;}
+    .ep-list{padding:4px 8px 12px;}
+    .agenda-row{padding:10px; gap:11px;}
+    .countdown .when{font-size:14.5px;}
+    .list-card{padding:14px;}
+    .panel{padding:16px;}
+    textarea.review{font-size:16px;} /* idem : pas de zoom auto */
+    .panel input[type=text],.panel input[type=password],.new-list input{font-size:16px;}
+  }
   .header-actions{margin-left:auto; display:flex; gap:8px;}
   .icon-btn{
     width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
@@ -598,15 +649,64 @@ function adoptRemote(remote){
   if (!state.lists) state.lists = {};
   store.set("cinelog-state", JSON.stringify(state)); // sans re-déclencher de push
 }
+function mergeStates(primary, secondary){
+  // primary = le plus récent (ses champs scalaires gagnent) ;
+  // les éléments présents d'un seul côté sont conservés, les épisodes vus fusionnés.
+  const out = {
+    apiKey: primary.apiKey || secondary.apiKey || "",
+    shows:{}, movies:{}, lists:{},
+    updatedAt: Math.max(primary.updatedAt||0, secondary.updatedAt||0)
+  };
+  const deep = o => JSON.parse(JSON.stringify(o));
+  for (const src of [secondary, primary]){
+    for (const [id, s] of Object.entries(src.shows || {})){
+      if (!out.shows[id]) out.shows[id] = deep(s);
+      else {
+        const t = out.shows[id];
+        const watched = Object.assign({}, t.watched, s.watched);
+        const rewatches = Math.max(t.rewatches||0, s.rewatches||0);
+        Object.assign(t, deep(s));
+        t.watched = watched; t.rewatches = rewatches;
+      }
+    }
+    for (const [id, m] of Object.entries(src.movies || {})){
+      if (!out.movies[id]) out.movies[id] = deep(m);
+      else {
+        const t = out.movies[id];
+        const watchCount = Math.max(t.watchCount||0, m.watchCount||0);
+        const watched = t.watched || m.watched;
+        Object.assign(t, deep(m));
+        t.watchCount = Math.max(watchCount, t.watched ? 1 : 0);
+        if (watched && !t.watched){ t.watched = true; t.watchCount = Math.max(1, t.watchCount); }
+      }
+    }
+    for (const [id, l] of Object.entries(src.lists || {})){
+      if (!out.lists[id]) out.lists[id] = deep(l);
+      else {
+        const t = out.lists[id];
+        const seen = new Set(t.items.map(it => it.type + ":" + it.id));
+        for (const it of l.items) if (!seen.has(it.type + ":" + it.id)){ t.items.push(deep(it)); seen.add(it.type + ":" + it.id); }
+        t.name = l.name || t.name;
+      }
+    }
+  }
+  return out;
+}
 async function syncNow(interactive=false){
   if (!ghToken || !gistId){ if (interactive) toast("Connecte d'abord un token GitHub"); return; }
   setSync("busy", "Synchronisation en cours…");
   try{
     const remote = await pullGist();
-    if (remote && (remote.updatedAt || 0) > (state.updatedAt || 0)){
-      adoptRemote(remote);
-      updateNav(); render();
-      if (interactive) toast("Données récupérées depuis GitHub ✓");
+    if (remote && remote.state){
+      const remoteNewer = (remote.updatedAt || 0) > (state.updatedAt || 0);
+      const merged = mergeStates(remoteNewer ? remote.state : state, remoteNewer ? state : remote.state);
+      merged.updatedAt = Math.max(remote.updatedAt||0, state.updatedAt||0);
+      const changed = JSON.stringify(merged) !== JSON.stringify(state);
+      state = Object.assign({ apiKey:"", shows:{}, movies:{}, lists:{} }, merged);
+      store.set("cinelog-state", JSON.stringify(state)); // sans re-déclencher de push
+      if (changed){ updateNav(); render(); if (interactive) toast("Données fusionnées depuis GitHub ✓"); }
+      await pushGist(); // renvoie la version fusionnée
+      if (!changed && interactive) toast("Sauvegarde à jour sur GitHub ✓");
     } else {
       await pushGist();
       if (interactive) toast("Sauvegarde envoyée sur GitHub ✓");
@@ -634,6 +734,21 @@ async function loadSyncConfig(){
   gistId = (await store.get("cinelog-gist-id")) || "";
 }
 function bindSyncUI(){
+  // Mobile : quand l'app passe en arrière-plan, on envoie immédiatement
+  // ce qui est en attente (sinon le navigateur suspend le script et rien ne part).
+  // Et quand on revient sur l'app / l'onglet, on va chercher les nouveautés.
+  document.addEventListener("visibilitychange", () => {
+    if (!ghToken || !gistId) return;
+    if (document.visibilityState === "hidden"){
+      if (pushTimer){ clearTimeout(pushTimer); pushTimer = null; doPush(); }
+    } else {
+      syncNow();
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    if (ghToken && gistId && pushTimer){ clearTimeout(pushTimer); pushTimer = null; doPush(); }
+  });
+  window.addEventListener("focus", () => { if (ghToken && gistId) syncNow(); });
   $("#btn-gh-connect").addEventListener("click", async () => {
     const token = $("#settings-gh-token").value.trim();
     if (!token){ toast("Colle ton token GitHub d'abord"); return; }
@@ -777,11 +892,14 @@ function setTab(tab){
   $("#search-input").value = "";
   updateNav(); render();
 }
+const TAB_ICONS = { library:"🗂️", watching:"▶️", agenda:"🗓️", discover:"✨", lists:"📋" };
 function updateNav(){
   $("#swap-icon").textContent = mode === "series" ? "📺" : "🎬";
   $("#swap-label").textContent = mode === "series" ? "Séries" : "Films";
   $("#tabs").innerHTML = TABS[mode].map(([id,label]) =>
-    `<button class="tab ${currentTab===id?"active":""}" data-tab="${id}">${label}</button>`).join("");
+    `<button class="tab ${currentTab===id?"active":""}" data-tab="${id}">
+      <span class="t-ico">${TAB_ICONS[id]||""}</span><span class="t-lbl">${label}</span>
+    </button>`).join("");
   document.querySelectorAll("#tabs .tab").forEach(t =>
     t.addEventListener("click", () => setTab(t.dataset.tab)));
 }
@@ -1885,6 +2003,10 @@ $("#setup-save").addEventListener("click", async () => {
 $("#setup-key").addEventListener("keydown", e => { if (e.key === "Enter") $("#setup-save").click(); });
 
 (async function init(){
+  // PWA : service worker pour l'installation et le mode hors-ligne
+  if ("serviceWorker" in navigator){
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
   await loadState();
   await loadSyncConfig();
   bindSyncUI();
