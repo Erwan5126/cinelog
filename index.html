@@ -100,6 +100,15 @@
     .grid .progress{height:3px;}
     .grid .noposter{font-size:8.5px; padding:4px;}
     /* Exception : les résultats de recherche gardent leurs titres (indispensables pour choisir) */
+    /* Grille dense : 5-6 affiches par ligne, mur de posters */
+    .grid{grid-template-columns:repeat(auto-fill,minmax(60px,1fr)); gap:8px;}
+    .grid .card{border-radius:9px;}
+    .grid .card .meta{display:none;}
+    .grid .badge{font-size:8.5px; padding:1.5px 4.5px; top:4px; right:4px; border-radius:6px;}
+    .grid .fav-dot{font-size:8.5px; padding:1px 3.5px; top:4px; left:4px; border-radius:6px;}
+    .grid .result-add{width:20px; height:20px; font-size:13px; top:4px; left:4px; border-radius:6px;}
+    .grid .result-seen{width:20px; height:20px; font-size:10px; top:28px; left:4px; border-radius:6px;}
+    /* Exception : dans la recherche, on a besoin des titres */
     #search-results.grid{grid-template-columns:repeat(auto-fill,minmax(106px,1fr)); gap:12px;}
     #search-results .card .meta{display:block;}
     #search-results .badge{font-size:11px; padding:3px 8px;}
@@ -522,7 +531,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-13</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-14</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1046,8 +1055,8 @@ function render(){
 }
 /* ---------- Tris & filtres de bibliothèque ---------- */
 const viewOpts = {
-  series: { sort:"recent", genre:"", rating:"", cat:"" },
-  movies: { sort:"recent", genre:"", rating:"", cat:"" }
+  series: { sort:"release", genre:"", rating:"", cat:"" },
+  movies: { sort:"release", genre:"", rating:"", cat:"" }
 };
 window.setViewOpt = function(key, val){
   viewOpts[mode][key] = val;
@@ -1060,13 +1069,15 @@ function applyView(items){
   if (o.rating === "0") out = out.filter(x => !x.rating);
   else if (o.rating) out = out.filter(x => (x.rating||0) >= parseInt(o.rating));
   const name = x => (x.name || x.title || "").toLowerCase();
+  const lastRelease = x => x.lastEp?.air_date || x.date || ""; // séries : dernier épisode diffusé
   const sorters = {
+    release: (a,b)=> lastRelease(b).localeCompare(lastRelease(a)) || name(a).localeCompare(name(b), "fr"),
     recent: (a,b)=> (b.addedAt||0)-(a.addedAt||0),
     alpha: (a,b)=> name(a).localeCompare(name(b), "fr"),
     rating: (a,b)=> (b.rating||0)-(a.rating||0) || name(a).localeCompare(name(b), "fr"),
     year: (a,b)=> (b.date||"").localeCompare(a.date||"")
   };
-  return [...out].sort(sorters[o.sort] || sorters.recent);
+  return [...out].sort(sorters[o.sort] || sorters.release);
 }
 function toolbarHTML(pool){
   const o = viewOpts[mode];
@@ -1082,10 +1093,11 @@ function toolbarHTML(pool){
     </select>
     <span class="lbl">Trier</span>
     <select class="status-select" onchange="setViewOpt('sort', this.value)">
+      <option value="release" ${sel("release",o.sort)}>Sortie récente</option>
       <option value="recent" ${sel("recent",o.sort)}>Ajout récent</option>
       <option value="alpha" ${sel("alpha",o.sort)}>A → Z</option>
       <option value="rating" ${sel("rating",o.sort)}>Ma note</option>
-      <option value="year" ${sel("year",o.sort)}>Année de sortie</option>
+      <option value="year" ${sel("year",o.sort)}>Première sortie</option>
     </select>
     <span class="lbl">Genre</span>
     <select class="status-select" onchange="setViewOpt('genre', this.value)">
