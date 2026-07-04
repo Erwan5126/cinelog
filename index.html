@@ -507,7 +507,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-10</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-11</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -896,13 +896,21 @@ function kindOf(){ return mode === "series" ? "tv" : "movie"; }
 
 /* ---------- Progression & statuts ---------- */
 function showProgress(show){
-  let total = 0;
+  let full = 0, aired = 0;
+  const le = show.lastEp; // dernier épisode diffusé (fourni par TMDB)
   for (const [num, s] of Object.entries(show.seasons || {})){
     if (num === "0") continue;
-    total += s.episode_count || 0;
+    const n = parseInt(num), count = s.episode_count || 0;
+    full += count;
+    if (le){
+      if (n < le.season) aired += count;
+      else if (n === le.season) aired += Math.min(le.episode, count);
+    }
   }
+  // Les épisodes annoncés mais pas encore diffusés ne comptent pas dans la progression
+  const total = (le && aired > 0) ? aired : full;
   const seen = Object.keys(show.watched || {}).filter(k => !k.startsWith("s0e")).length;
-  return { seen, total, pct: total ? Math.round(Math.min(seen,total)/total*100) : 0 };
+  return { seen, total, full, pct: total ? Math.round(Math.min(seen,total)/total*100) : 0 };
 }
 function effectiveStatus(show){
   if (show.userStatus === "paused" || show.userStatus === "dropped") return show.userStatus;
@@ -1190,6 +1198,7 @@ async function refreshShowDetails(show, force=false){
     const d = await tmdb(`/tv/${show.id}`);
     show.tmdbStatus = d.status;
     show.nextEp = d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null;
+    show.lastEp = d.last_episode_to_air ? pickEp(d.last_episode_to_air) : null;
     show.seasons = buildSeasons(d);
     show.genres = (d.genres||[]).map(g=>g.name);
     show.detailsAt = Date.now();
@@ -1619,6 +1628,7 @@ async function addShow(id){
     seasons: buildSeasons(d), watched:{}, addedAt:Date.now(),
     tmdbStatus: d.status,
     nextEp: d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null,
+    lastEp: d.last_episode_to_air ? pickEp(d.last_episode_to_air) : null,
     detailsAt: Date.now(),
     genres: (d.genres||[]).map(g=>g.name),
     userStatus:null, rating:0, favorite:false, review:"", rewatches:0
@@ -1946,7 +1956,7 @@ function renderEpisodes(showId, num){
         <div class="clickable" onclick="toggleEp(${showId},'${key}',${num})">
           <span class="check">✓</span>
           <span class="num">E${String(ep.episode_number).padStart(2,"0")}</span>
-          <span class="name">${esc(ep.name || "Épisode " + ep.episode_number)}${future ? ` <span style="color:var(--accent); font-size:11px;">· ${countdownLabel(daysUntil(ep.air_date))}</span>` : ""}</span>
+          <span class="name">${esc(ep.name || "Épisode " + ep.episode_number)}${ep.air_date ? ` <span style="color:var(--muted); font-size:11px;">· ${fmtDate(ep.air_date)}</span>` : ""}${future ? ` <span style="color:var(--accent); font-size:11px;">· ${countdownLabel(daysUntil(ep.air_date))}</span>` : ""}</span>
         </div>
         <button class="upto" title="Marquer tout vu jusqu'ici" onclick="markUpTo(${showId}, ${num}, ${ep.episode_number})">⇤</button>
       </div>`;
@@ -2367,6 +2377,7 @@ async function addShowSilent(id){
     id, name:d.name, poster:d.poster_path, date:d.first_air_date, overview:d.overview,
     seasons: buildSeasons(d), watched:{}, addedAt:Date.now(),
     tmdbStatus:d.status, nextEp: d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null,
+    lastEp: d.last_episode_to_air ? pickEp(d.last_episode_to_air) : null,
     detailsAt: Date.now(), genres:(d.genres||[]).map(g=>g.name),
     userStatus:null, rating:0, favorite:false, review:"", rewatches:0
   };
