@@ -507,7 +507,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-9</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-10</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -591,7 +591,7 @@ const store = {
 };
 
 /* ---------- État ---------- */
-let state = { apiKey:"", shows:{}, movies:{}, lists:{} };
+let state = { apiKey:"", shows:{}, movies:{}, lists:{}, deleted:{} };
 let mode = "series";          // "series" | "movies" — l'univers courant
 let currentTab = "library";   // "library" | "watching" | "agenda" | "discover" | "lists"
 let searchTimer = null;
@@ -608,6 +608,7 @@ async function loadState(){
   const raw = await store.get("cinelog-state");
   if (raw){ try{ state = Object.assign(state, JSON.parse(raw)); }catch(e){} }
   if (!state.lists) state.lists = {};
+  if (!state.deleted) state.deleted = {};
 }
 let saveTimer = null;
 function saveState(){
@@ -701,6 +702,7 @@ function adoptRemote(remote){
   state = Object.assign({ apiKey:"", shows:{}, movies:{}, lists:{} }, remote.state || {});
   if (!state.apiKey) state.apiKey = keepKey;
   if (!state.lists) state.lists = {};
+  if (!state.deleted) state.deleted = {};
   store.set("cinelog-state", JSON.stringify(state)); // sans re-déclencher de push
 }
 function mergeStates(primary, secondary){
@@ -744,11 +746,34 @@ function mergeStates(primary, secondary){
       }
     }
   }
+  // Pierres tombales : une suppression volontaire gagne sur la fusion-union,
+  // sauf si l'élément a été ré-ajouté APRÈS la suppression.
+  out.deleted = {};
+  for (const src of [secondary, primary])
+    for (const [k, ts] of Object.entries(src.deleted || {}))
+      out.deleted[k] = Math.max(out.deleted[k] || 0, ts);
+  const cutoff = Date.now() - 90*24*3600*1000; // on purge les tombales de +90 jours
+  for (const [k, ts] of Object.entries(out.deleted)){
+    if (ts < cutoff){ delete out.deleted[k]; continue; }
+    const [kind, id] = k.split(":");
+    const bucket = kind === "tv" ? out.shows : kind === "movie" ? out.movies : kind === "list" ? out.lists : null;
+    if (bucket && bucket[id]){
+      const born = bucket[id].addedAt || bucket[id].createdAt || 0;
+      if (born > ts) delete out.deleted[k];   // ré-ajouté après suppression → il reste
+      else delete bucket[id];                 // supprimé volontairement → il part
+    }
+  }
   return out;
 }
 async function syncNow(interactive=false){
   if (!ghToken || !gistId){ if (interactive) toast("Connecte d'abord un token GitHub"); return; }
   setSync("busy", "Synchronisation en cours…");
+  // Un envoi est en attente ? On le termine AVANT de récupérer, pour ne pas
+  // se faire écraser par une version distante qui ignore nos derniers changements.
+  if (pushTimer){
+    clearTimeout(pushTimer); pushTimer = null;
+    try{ await pushGist(); }catch(e){}
+  }
   try{
     const remote = await pullGist();
     if (remote && remote.state){
@@ -756,7 +781,7 @@ async function syncNow(interactive=false){
       const merged = mergeStates(remoteNewer ? remote.state : state, remoteNewer ? state : remote.state);
       merged.updatedAt = Math.max(remote.updatedAt||0, state.updatedAt||0);
       const changed = JSON.stringify(merged) !== JSON.stringify(state);
-      state = Object.assign({ apiKey:"", shows:{}, movies:{}, lists:{} }, merged);
+      state = Object.assign({ apiKey:"", shows:{}, movies:{}, lists:{}, deleted:{} }, merged);
       store.set("cinelog-state", JSON.stringify(state)); // sans re-déclencher de push
       if (changed){ updateNav(); render(); if (interactive) toast("Données fusionnées depuis GitHub ✓"); }
       await pushGist(); // renvoie la version fusionnée
@@ -1587,6 +1612,7 @@ function pickEp(e){
 }
 async function addShow(id){
   if (state.shows[id]) return state.shows[id];
+  delete state.deleted["tv:" + id];
   const d = await tmdb(`/tv/${id}`);
   state.shows[id] = {
     id, name:d.name, poster:d.poster_path, date:d.first_air_date, overview:d.overview,
@@ -1602,6 +1628,7 @@ async function addShow(id){
 }
 async function addMovie(id, watched=false){
   if (state.movies[id]) return state.movies[id];
+  delete state.deleted["movie:" + id];
   const d = await tmdb(`/movie/${id}`);
   state.movies[id] = {
     id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview,
@@ -1673,6 +1700,7 @@ window.createList = function(){
 };
 window.deleteList = function(id){
   if (!confirm(`Supprimer la liste « ${state.lists[id]?.name} » ?`)) return;
+  state.deleted["list:" + id] = Date.now();
   delete state.lists[id]; saveState(); render();
 };
 window.removeFromList = function(listId, type, id){
@@ -1966,6 +1994,7 @@ function refreshSeasonCounts(showId){
 }
 window.removeShow = function(id){
   if (!confirm("Retirer cette série et son suivi ?")) return;
+  state.deleted["tv:" + id] = Date.now();
   delete state.shows[id];
   for (const l of Object.values(state.lists)) l.items = l.items.filter(it => !(it.type==="tv" && it.id===id));
   saveState(); closeModal(); render(); toast("Série retirée");
@@ -2017,6 +2046,7 @@ window.rewatchMovie = function(id){
 };
 window.removeMovie = function(id){
   if (!confirm("Retirer ce film ?")) return;
+  state.deleted["movie:" + id] = Date.now();
   delete state.movies[id];
   for (const l of Object.values(state.lists)) l.items = l.items.filter(it => !(it.type==="movie" && it.id===id));
   saveState(); closeModal(); render(); toast("Film retiré");
@@ -2043,7 +2073,7 @@ $("#settings-save").addEventListener("click", () => {
 });
 $("#btn-wipe").addEventListener("click", async () => {
   if (confirm("Tout effacer ? (séries, films, listes, clé API — la synchro sera déconnectée, le Gist GitHub n'est pas supprimé)")){
-    state = { apiKey:"", shows:{}, movies:{}, lists:{} };
+    state = { apiKey:"", shows:{}, movies:{}, lists:{}, deleted:{} };
     ghToken = ""; gistId = "";
     await store.set("cinelog-gh-token", "");
     await store.set("cinelog-gist-id", "");
@@ -2331,6 +2361,7 @@ async function handleFiles(files){
 }
 async function addShowSilent(id){
   if (state.shows[id]) return state.shows[id];
+  delete state.deleted["tv:" + id];
   const d = await tmdb(`/tv/${id}`);
   state.shows[id] = {
     id, name:d.name, poster:d.poster_path, date:d.first_air_date, overview:d.overview,
@@ -2342,6 +2373,7 @@ async function addShowSilent(id){
   return state.shows[id];
 }
 async function addMovieSilent(id, watched){
+  delete state.deleted["movie:" + id];
   const d = await tmdb(`/movie/${id}`);
   state.movies[id] = {
     id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview,
