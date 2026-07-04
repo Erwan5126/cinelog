@@ -89,7 +89,22 @@
     .toolbar{flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch;}
     .toolbar .lbl{display:none;}
     .toolbar select{flex:0 0 auto;}
-    .grid{grid-template-columns:repeat(auto-fill,minmax(106px,1fr)); gap:12px;}
+    /* Grille dense façon mur d'affiches : ~5 par ligne, sans titres */
+    .grid{grid-template-columns:repeat(auto-fill,minmax(66px,1fr)); gap:8px;}
+    .grid .card{border-radius:9px;}
+    .grid .card .meta{display:none;}
+    .grid .badge{top:4px; right:4px; padding:1px 5px; font-size:8.5px; border-radius:5px;}
+    .grid .fav-dot{top:4px; left:4px; padding:0 3px; font-size:9px; border-radius:5px;}
+    .grid .result-add{width:20px; height:20px; font-size:13px; top:4px; left:4px; border-radius:6px;}
+    .grid .result-seen{width:20px; height:20px; font-size:10px; top:28px; left:4px; border-radius:6px;}
+    .grid .progress{height:3px;}
+    .grid .noposter{font-size:8.5px; padding:4px;}
+    /* Exception : les résultats de recherche gardent leurs titres (indispensables pour choisir) */
+    #search-results.grid{grid-template-columns:repeat(auto-fill,minmax(106px,1fr)); gap:12px;}
+    #search-results .card .meta{display:block;}
+    #search-results .badge{font-size:11px; padding:3px 8px;}
+    #search-results .result-add{width:26px; height:26px; font-size:16px; top:8px; left:8px;}
+    #search-results .result-seen{width:26px; height:26px; font-size:13px; top:40px; left:8px;}
     .searchbar{margin-bottom:16px;}
     .searchbar input{padding:12px 15px; font-size:16px;} /* 16px évite le zoom auto iOS */
     /* Fiches en plein écran, façon app native */
@@ -507,7 +522,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-11</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-13</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -2424,6 +2439,7 @@ $("#setup-key").addEventListener("keydown", e => { if (e.key === "Enter") $("#se
   for (const s of Object.values(state.shows)){
     if (s.rating === undefined) Object.assign(s, {userStatus:null, rating:0, favorite:false, review:"", tmdbStatus:null, nextEp:null, detailsAt:0});
     if (s.rewatches === undefined) s.rewatches = 0;
+    if (s.lastEp === undefined) s.detailsAt = 0; // force la récupération du dernier épisode diffusé (progression au diffusé)
     if (s.seasons && s.seasons["0"]) delete s.seasons["0"]; // plus de "Spéciaux"
     for (const k of Object.keys(s.watched || {})) if (k.startsWith("s0e")) delete s.watched[k];
   }
