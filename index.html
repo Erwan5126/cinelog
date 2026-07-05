@@ -408,7 +408,9 @@
     /* Structure "app native" : colonne rigide header / contenu défilant / barre.
        La barre est un élément normal posé en bas — immunisé contre les caprices
        de position:fixed dans les PWA iOS. */
-    #app{display:flex; flex-direction:column; height:100%;} /* 100dvh est mal calculé en PWA iOS */
+    /* Coquille épinglée aux 4 bords : aucune unité de hauteur à interpréter */
+    #app{position:fixed; inset:0; display:flex; flex-direction:column;}
+    body{overflow:hidden;} /* tout le défilement se fait dans main */
     header{position:static; flex-shrink:0;}
     main{
       flex:1 1 auto; min-height:0;
@@ -416,11 +418,12 @@
       padding:16px 14px 28px;
     }
     .tabbar{
-      order:1; /* dernier étage de la colonne : tout en bas de l'écran */
-      flex-shrink:0;
+      /* La page ne défile jamais (main défile en interne), donc le positionnement
+         fixé au bas de l'écran est fiable — plus de vide ni de décalage. */
+      position:fixed; left:0; right:0; bottom:0; z-index:60;
       border-top:1px solid var(--line);
-      background:rgba(14,15,19,.94);
-      padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+      background:rgba(14,15,19,.97);
+      padding:5px 6px calc(3px + env(safe-area-inset-bottom));
       display:flex; justify-content:space-around; gap:2px;
     }
     .tabbar .tab{
@@ -561,7 +564,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-21</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-22</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
