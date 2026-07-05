@@ -23,6 +23,23 @@
     --radius:14px;
   }
   body[data-mode="movies"]{ --accent:#ffb454; --accent-soft:rgba(255,180,84,.13); }
+  body[data-theme="light"]{
+    --bg:#f3f3f8; --surface:#ffffff; --surface2:#eaebf2;
+    --text:#1a1b21; --muted:#5e6170; --line:#d7d9e3;
+  }
+  body[data-theme="light"] header{background:rgba(243,243,248,.88);}
+  body[data-theme="light"] .tabbar{background:rgba(243,243,248,.97);}
+  body[data-theme="light"] .badge,
+  body[data-theme="light"] .fav-dot,
+  body[data-theme="light"] .result-seen,
+  body[data-theme="light"] .list-items .rm{background:rgba(255,255,255,.92);}
+  body[data-theme="light"] .toast{background:#ffffff;}
+  body[data-theme="light"] .progress{background:rgba(0,0,0,.15);}
+  body[data-theme="light"] .overlay{background:rgba(255,255,255,.72);}
+  body[data-theme="light"] .btn,
+  body[data-theme="light"] .swap-btn,
+  body[data-theme="light"] .tab.active{color:#ffffff;}
+  body[data-theme="light"] .noposter{color:#8b8e9c;}
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
   body{
@@ -565,12 +582,20 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-24</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-26</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
         <button class="btn" id="settings-save">Enregistrer</button>
         <button class="btn danger" id="btn-wipe">Tout effacer</button>
+      </div>
+      <h3 style="margin-top:22px;">Apparence</h3>
+      <div class="modal-actions" style="margin-top:0;">
+        <select class="status-select" id="theme-select" style="flex:1;">
+          <option value="dark">🌙 Sombre</option>
+          <option value="light">☀️ Clair</option>
+          <option value="auto">📱 Auto (suit le réglage de l'appareil)</option>
+        </select>
       </div>
       <h3 style="margin-top:22px;">Synchro GitHub Gist</h3>
       <p>Colle un token GitHub avec la seule permission « gist ». Ta bibliothèque sera sauvegardée dans un Gist secret de ton compte et synchronisée entre tes appareils. Le token reste dans ce navigateur.</p>
@@ -581,7 +606,7 @@
         <button class="btn danger" id="btn-gh-disconnect">Déconnecter</button>
       </div>
       <p id="gh-status" style="margin:12px 0 0; font-size:12.5px;"></p>
-      <p id="debug-viewport" style="margin:10px 0 0; font-size:11px; color:var(--muted); font-family:monospace;"></p>
+      <p id="debug-viewport" style="margin:10px 0 0; font-size:11px; color:var(--muted); font-family:monospace; white-space:pre-wrap;"></p>
     </div>
 
     <div class="searchbar" id="searchbar">
@@ -956,7 +981,14 @@ function kindOf(){ return mode === "series" ? "tv" : "movie"; }
 /* ---------- Progression & statuts ---------- */
 function showProgress(show){
   let full = 0, aired = 0;
-  const le = show.lastEp; // dernier épisode diffusé (fourni par TMDB)
+  // Frontière du "diffusé" : le dernier épisode diffusé selon TMDB…
+  let le = show.lastEp;
+  // …mais si le "prochain épisode" sort AUJOURD'HUI (ou est passé), TMDB n'a
+  // peut-être pas encore basculé : on le compte comme diffusé nous-mêmes.
+  const ne = show.nextEp;
+  if (ne && ne.air_date && daysUntil(ne.air_date) <= 0){
+    if (!le || ne.season > le.season || (ne.season === le.season && ne.episode > le.episode)) le = ne;
+  }
   for (const [num, s] of Object.entries(show.seasons || {})){
     if (num === "0") continue;
     const n = parseInt(num), count = s.episode_count || 0;
@@ -1024,6 +1056,32 @@ async function backfillGenres(){
   }
   saveState();
   if (currentTab === "library") render();
+}
+
+/* ---------- Thème (sombre / clair / auto) ---------- */
+let themePref = "dark";
+function applyTheme(){
+  const light = themePref === "light" ||
+    (themePref === "auto" && window.matchMedia("(prefers-color-scheme: light)").matches);
+  document.body.dataset.theme = light ? "light" : "dark";
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.content = light ? "#f3f3f8" : "#0e0f13";
+}
+async function loadTheme(){
+  themePref = (await store.get("cinelog-theme")) || "dark";
+  applyTheme();
+  const sel = $("#theme-select");
+  if (sel){
+    sel.value = themePref;
+    sel.addEventListener("change", () => {
+      themePref = sel.value;
+      store.set("cinelog-theme", themePref);
+      applyTheme();
+    });
+  }
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if (themePref === "auto") applyTheme();
+  });
 }
 
 /* ---------- Navigation ---------- */
@@ -2156,7 +2214,17 @@ $("#btn-settings").addEventListener("click", () => {
     `dbg: win ${window.innerWidth}×${window.innerHeight} | ` +
     `vv ${vv ? Math.round(vv.width)+"×"+Math.round(vv.height) : "n/a"} | ` +
     `screen ${screen.width}×${screen.height} | ` +
-    `dpr ${window.devicePixelRatio} | ${standalone ? "PWA installée" : "navigateur"}`;
+    `dpr ${window.devicePixelRatio} | ${standalone ? "PWA installée" : "navigateur"}` + "\n" +
+    (() => {
+      const app = document.getElementById("app");
+      const bar = document.getElementById("tabs-bottom");
+      const ar = app.getBoundingClientRect(), br = bar.getBoundingClientRect();
+      const mq = window.matchMedia("(max-width:640px)").matches;
+      return `dbg2: app top${Math.round(ar.top)} haut${Math.round(ar.height)} | ` +
+        `barre bas${Math.round(br.bottom)} / ih${window.innerHeight} ` +
+        `${Math.round(br.bottom) >= window.innerHeight - 2 ? "→ barre AU bord du viewport (cadre iOS décalé)" : "→ vide DANS le viewport (souci CSS)"} | ` +
+        `mq ${mq ? "mobile" : "desktop"}`;
+    })();
 });
 $("#settings-save").addEventListener("click", () => {
   state.apiKey = $("#settings-key").value.trim(); saveState(); toast("Clé enregistrée");
@@ -2501,6 +2569,7 @@ $("#setup-key").addEventListener("keydown", e => { if (e.key === "Enter") $("#se
   await loadState();
   await loadSyncConfig();
   await loadCollapsed();
+  await loadTheme();
   bindSyncUI();
   for (const s of Object.values(state.shows)){
     if (s.rating === undefined) Object.assign(s, {userStatus:null, rating:0, favorite:false, review:"", tmdbStatus:null, nextEp:null, detailsAt:0});
