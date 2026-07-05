@@ -453,13 +453,17 @@
     .searchbar input{padding:12px 15px; font-size:16px;} /* 16px évite le zoom auto iOS */
     /* Fiches en plein écran, façon app native */
     .overlay{
-      padding:0; align-items:stretch;
+      padding:0;
       backdrop-filter:none; -webkit-backdrop-filter:none; /* bug WebKit : blur + scroll = figé */
       background:var(--bg);
       -webkit-overflow-scrolling:touch;
     }
+    /* Mise en page en bloc (pas de flex) : le conteneur défile naturellement,
+       la fiche grandit avec son contenu — le schéma le plus fiable sur iOS */
+    .overlay.open{display:block;}
     .modal{
-      width:100%; max-width:none; min-height:100%; border-radius:0; border:none;
+      width:100%; max-width:none; min-height:100dvh; margin:0;
+      border-radius:0; border:none;
       animation:slideup .22s ease;
     }
     @keyframes slideup{from{transform:translateY(24px); opacity:.5;} to{transform:none; opacity:1;}}
@@ -545,7 +549,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-17</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-18</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
