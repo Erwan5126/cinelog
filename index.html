@@ -103,6 +103,18 @@
   /* ---------- Layout ---------- */
   main{max-width:1100px; margin:0 auto; padding:24px 20px 80px;}
   .searchbar{display:flex; gap:10px; margin-bottom:22px;}
+  .search-wrap{position:relative; flex:1; display:flex;}
+  .search-wrap input{width:100%;}
+  .search-clear{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    width:28px; height:28px; border-radius:50%;
+    border:none; background:var(--surface2); color:var(--muted);
+    font-size:13px; line-height:1; cursor:pointer; display:grid; place-items:center;
+  }
+  .search-clear:hover{color:var(--text);}
+  .search-clear.hidden{display:none;}
+  /* on masque la croix native des navigateurs pour ne pas la doubler */
+  #search-input::-webkit-search-cancel-button{-webkit-appearance:none; appearance:none;}
   .searchbar input{
     flex:1; padding:13px 18px; border-radius:var(--radius);
     background:var(--surface); border:1px solid var(--line); color:var(--text); font-size:15px;
@@ -604,7 +616,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-28</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-30</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -632,7 +644,10 @@
     </div>
 
     <div class="searchbar" id="searchbar">
-      <input type="search" id="search-input" placeholder="Chercher une série…" autocomplete="off">
+      <div class="search-wrap">
+        <input type="search" id="search-input" placeholder="Chercher une série…" autocomplete="off">
+        <button id="search-clear" class="search-clear hidden" title="Effacer la recherche" aria-label="Effacer">✕</button>
+      </div>
     </div>
 
     <div id="search-section" class="hidden">
@@ -1162,7 +1177,11 @@ $("#swap-btn").addEventListener("click", () => setMode(mode === "series" ? "movi
 function render(){
   const onLibrary = currentTab === "library";
   $("#searchbar").classList.toggle("hidden", !onLibrary);
-  $("#search-section").classList.add("hidden");
+  // Une recherche en cours reste affichée (fiche ouverte/fermée, ajout, synchro…)
+  const activeQuery = onLibrary && $("#search-input").value.trim() &&
+    lastSearch.results && lastSearch.kind === kindOf();
+  if (activeQuery) renderSearchResults();
+  else $("#search-section").classList.add("hidden");
   const lib = $("#library-section");
 
   if (currentTab === "library"){
@@ -1741,27 +1760,42 @@ async function buildPersonalRecoData(kind, pool){
 $("#search-input").addEventListener("input", e => {
   clearTimeout(searchTimer);
   const q = e.target.value.trim();
+  $("#search-clear").classList.toggle("hidden", !e.target.value);
   if (!q){ $("#search-section").classList.add("hidden"); return; }
   searchTimer = setTimeout(()=> doSearch(q), 350);
 });
+$("#search-clear").addEventListener("click", () => {
+  clearTimeout(searchTimer);
+  const inp = $("#search-input");
+  inp.value = "";
+  lastSearch = { q:"", kind:null, results:[] };
+  $("#search-clear").classList.add("hidden");
+  $("#search-section").classList.add("hidden");
+  inp.focus();
+});
+let lastSearch = { q:"", kind:null, results:[] };
 async function doSearch(q){
   try{
     const kind = kindOf();
     const data = await tmdb(`/search/${kind}`, { query:q, include_adult:"false" });
-    const results = (data.results||[]).slice(0,12);
-    $("#search-section").classList.remove("hidden");
-    $("#search-results").innerHTML = results.length ? results.map(r => {
-      const title = r.name || r.title, date = r.first_air_date || r.release_date;
-      const inLib = kind==="tv" ? !!state.shows[r.id] : !!state.movies[r.id];
-      return `<div class="card" onclick="openPreview('${kind}',${r.id})" role="button" tabindex="0">
-        ${posterOrFallback(r.poster_path, title)}
-        ${inLib ? `<span class="badge done">Déjà ajouté</span>`
-          : `<button class="result-add" title="Ajouter" onclick="quickAdd(event,'${kind}',${r.id})">+</button>
-             <button class="result-seen" title="Ajouter comme déjà vu" onclick="quickAddSeen(event,'${kind}',${r.id})">✓</button>`}
-        <div class="meta"><div class="title">${esc(title)}</div><div class="sub">${year(date)}</div></div>
-      </div>`;
-    }).join("") : `<div class="empty">Rien trouvé sur TMDB pour « ${esc(q)} ».</div>`;
+    lastSearch = { q, kind, results:(data.results||[]).slice(0,12) };
+    renderSearchResults();
   }catch(e){ toast("Erreur TMDB — vérifie ta clé API dans ⚙"); }
+}
+function renderSearchResults(){
+  const { q, kind, results } = lastSearch;
+  $("#search-section").classList.remove("hidden");
+  $("#search-results").innerHTML = results.length ? results.map(r => {
+    const title = r.name || r.title, date = r.first_air_date || r.release_date;
+    const inLib = kind==="tv" ? !!state.shows[r.id] : !!state.movies[r.id];
+    return `<div class="card" onclick="openPreview('${kind}',${r.id})" role="button" tabindex="0">
+      ${posterOrFallback(r.poster_path, title)}
+      ${inLib ? `<span class="badge done">Déjà ajouté</span>`
+        : `<button class="result-add" title="Ajouter" onclick="quickAdd(event,'${kind}',${r.id})">+</button>
+           <button class="result-seen" title="Ajouter comme déjà vu" onclick="quickAddSeen(event,'${kind}',${r.id})">✓</button>`}
+      <div class="meta"><div class="title">${esc(title)}</div><div class="sub">${year(date)}</div></div>
+    </div>`;
+  }).join("") : `<div class="empty">Rien trouvé sur TMDB pour « ${esc(q)} ».</div>`;
 }
 
 /* ---------- Ajout ---------- */
