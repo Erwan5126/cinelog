@@ -416,6 +416,7 @@
       padding:16px 14px 28px;
     }
     .tabbar{
+      order:1; /* dernier étage de la colonne : tout en bas de l'écran */
       flex-shrink:0;
       border-top:1px solid var(--line);
       background:rgba(14,15,19,.94);
@@ -560,7 +561,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-19</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-20</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
