@@ -451,7 +451,8 @@
        même sur les onglets courts (le défilement du contenu reste normal) */
     html, body{overscroll-behavior-y:none; background:var(--bg);}
     /* Grille dense : 5-6 affiches par ligne, mur de posters */
-    .grid{grid-template-columns:repeat(auto-fill,minmax(60px,1fr)); gap:8px;}
+    .grid{grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px;}
+    main{overflow-x:hidden; max-width:100%;}
     .grid .card{border-radius:9px;}
     .grid .card .meta{display:none;}
     .grid .badge{font-size:8.5px; padding:1.5px 4.5px; top:4px; right:4px; border-radius:6px;}
@@ -564,7 +565,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-22</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-23</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -580,6 +581,7 @@
         <button class="btn danger" id="btn-gh-disconnect">Déconnecter</button>
       </div>
       <p id="gh-status" style="margin:12px 0 0; font-size:12.5px;"></p>
+      <p id="debug-viewport" style="margin:10px 0 0; font-size:11px; color:var(--muted); font-family:monospace;"></p>
     </div>
 
     <div class="searchbar" id="searchbar">
@@ -2148,6 +2150,13 @@ $("#btn-settings").addEventListener("click", () => {
   $("#import-panel").classList.add("hidden");
   $("#settings-key").value = state.apiKey;
   updateGhStatus();
+  const vv = window.visualViewport;
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  $("#debug-viewport").textContent =
+    `dbg: win ${window.innerWidth}×${window.innerHeight} | ` +
+    `vv ${vv ? Math.round(vv.width)+"×"+Math.round(vv.height) : "n/a"} | ` +
+    `screen ${screen.width}×${screen.height} | ` +
+    `dpr ${window.devicePixelRatio} | ${standalone ? "PWA installée" : "navigateur"}`;
 });
 $("#settings-save").addEventListener("click", () => {
   state.apiKey = $("#settings-key").value.trim(); saveState(); toast("Clé enregistrée");
