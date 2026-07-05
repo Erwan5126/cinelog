@@ -209,6 +209,7 @@
     z-index:100; display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:30px 16px;
   }
   .overlay.open{display:flex;}
+  body.modal-open{overflow:hidden;}
   .modal{
     background:var(--surface); border:1px solid var(--line); border-radius:20px;
     max-width:680px; width:100%; overflow:hidden; animation:pop .18s ease; position:relative;
@@ -451,7 +452,12 @@
     .searchbar{margin-bottom:16px;}
     .searchbar input{padding:12px 15px; font-size:16px;} /* 16px évite le zoom auto iOS */
     /* Fiches en plein écran, façon app native */
-    .overlay{padding:0; align-items:stretch;}
+    .overlay{
+      padding:0; align-items:stretch;
+      backdrop-filter:none; -webkit-backdrop-filter:none; /* bug WebKit : blur + scroll = figé */
+      background:var(--bg);
+      -webkit-overflow-scrolling:touch;
+    }
     .modal{
       width:100%; max-width:none; min-height:100%; border-radius:0; border:none;
       animation:slideup .22s ease;
@@ -539,7 +545,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-16</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-17</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1499,6 +1505,7 @@ window.openPreview = async function(kind, id){
       </div>
       ${extrasHTML()}`;
     $("#overlay").classList.add("open");
+  document.body.classList.add("modal-open");
     fillExtras(kind, id);
   }catch(e){ toast("Impossible de charger la fiche"); }
 };
@@ -1930,6 +1937,7 @@ window.openShow = async function(id){
     </div>
     ${extrasHTML()}`;
   $("#overlay").classList.add("open");
+  document.body.classList.add("modal-open");
   fillExtras("tv", id);
   refreshShowDetails(s);
 };
@@ -2078,6 +2086,7 @@ window.openMovie = function(id){
     ${reviewBlock("movie", id, m.review)}
     ${extrasHTML()}`;
   $("#overlay").classList.add("open");
+  document.body.classList.add("modal-open");
   fillExtras("movie", id);
 };
 window.toggleMovieWatched = function(id){
@@ -2102,7 +2111,10 @@ window.removeMovie = function(id){
   saveState(); closeModal(); render(); toast("Film retiré");
 };
 
-function closeModal(){ $("#overlay").classList.remove("open"); }
+function closeModal(){
+  $("#overlay").classList.remove("open");
+  document.body.classList.remove("modal-open");
+}
 $("#modal-close").addEventListener("click", closeModal);
 $("#overlay").addEventListener("click", e => { if (e.target === e.currentTarget) closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape"){ closeModal(); closePicker(); } });
