@@ -408,7 +408,7 @@
     /* Structure "app native" : colonne rigide header / contenu défilant / barre.
        La barre est un élément normal posé en bas — immunisé contre les caprices
        de position:fixed dans les PWA iOS. */
-    #app{display:flex; flex-direction:column; height:100dvh;}
+    #app{display:flex; flex-direction:column; height:100%;} /* 100dvh est mal calculé en PWA iOS */
     header{position:static; flex-shrink:0;}
     main{
       flex:1 1 auto; min-height:0;
@@ -561,7 +561,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-20</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-21</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
