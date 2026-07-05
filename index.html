@@ -353,8 +353,8 @@
   .stat-lbl{font-size:11.5px; color:var(--muted); margin-top:4px;}
   .bar-row{display:flex; align-items:center; gap:12px; font-size:13px; margin-bottom:9px;}
   .bar-row .bar-name{width:150px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .bar-row .bar-track{flex:1; height:9px; background:var(--surface2); border-radius:99px; overflow:hidden;}
-  .bar-row .bar-fill{height:100%; background:var(--accent); border-radius:99px;}
+  .bar-row .bar-track{flex:1; height:9px; background:var(--surface2); border-radius:99px; overflow:hidden; display:block;}
+  .bar-row .bar-fill{display:block; height:100%; background:var(--accent); border-radius:99px;}
   .bar-row .bar-val{width:52px; text-align:right; color:var(--muted); font-size:12px; flex-shrink:0;}
   .rw-pill{
     display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700;
@@ -604,7 +604,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-27</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-28</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1935,7 +1935,7 @@ function renderStats(lib){
       eps += seen;
       rewatches += s.rewatches || 0;
       minutes += (seen + fullRuns) * rt;
-      for (const g of s.genres || []) genreEp[g] = (genreEp[g] || 0) + seen;
+      if (seen > 0) for (const g of s.genres || []) genreEp[g] = (genreEp[g] || 0) + 1;
       if (seen > topEps){ topEps = seen; topShow = s; }
       if (s.rating){ totalRated++; sumRating += s.rating; }
     }
@@ -1951,7 +1951,7 @@ function renderStats(lib){
         ${totalRated ? statCard("★ " + (sumRating/totalRated).toFixed(1), "note moyenne", `${totalRated} série(s) notée(s)`) : ""}
         ${topShow ? statCard(esc(topShow.name), `${topEps} épisodes vus`, "ta série la plus regardée") : ""}
       </div>
-      <div class="section-label">Genres les plus regardés <span class="count-pill">en épisodes</span></div>
+      <div class="section-label">Genres les plus regardés <span class="count-pill">en séries</span></div>
       ${barChart(topGenres, "")}`;
   } else {
     const movies = Object.values(state.movies);
