@@ -405,11 +405,20 @@
     .header-inner{gap:10px; padding:10px 14px; flex-wrap:nowrap;}
     .wordmark{font-size:18px;}
     .tabs{display:none;} /* les onglets du header laissent place à la barre du bas */
-    /* Barre de navigation fixe en bas, accessible au pouce */
+    /* Structure "app native" : colonne rigide header / contenu défilant / barre.
+       La barre est un élément normal posé en bas — immunisé contre les caprices
+       de position:fixed dans les PWA iOS. */
+    #app{display:flex; flex-direction:column; height:100dvh;}
+    header{position:static; flex-shrink:0;}
+    main{
+      flex:1 1 auto; min-height:0;
+      overflow-y:auto; -webkit-overflow-scrolling:touch;
+      padding:16px 14px 28px;
+    }
     .tabbar{
-      position:fixed; left:0; right:0; bottom:0; z-index:60;
+      flex-shrink:0;
       border-top:1px solid var(--line);
-      background:rgba(14,15,19,.94); backdrop-filter:blur(14px);
+      background:rgba(14,15,19,.94);
       padding:6px 6px calc(6px + env(safe-area-inset-bottom));
       display:flex; justify-content:space-around; gap:2px;
     }
@@ -420,7 +429,6 @@
     .tabbar .tab .t-ico{display:block; line-height:0;}
     .tabbar .tab .t-ico svg{width:21px; height:21px;}
     .tabbar .tab.active{background:var(--accent-soft); color:var(--accent);}
-    main{padding:16px 14px calc(92px + env(safe-area-inset-bottom));}
     .toolbar{flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch;}
     .toolbar .lbl{display:none;}
     .toolbar select{flex:0 0 auto;}
@@ -435,6 +443,9 @@
     .grid .progress{height:3px;}
     .grid .noposter{font-size:8.5px; padding:4px;}
     /* Exception : les résultats de recherche gardent leurs titres (indispensables pour choisir) */
+    /* Pas de rebond élastique de la page entière : la barre du bas reste ancrée,
+       même sur les onglets courts (le défilement du contenu reste normal) */
+    html, body{overscroll-behavior-y:none; background:var(--bg);}
     /* Grille dense : 5-6 affiches par ligne, mur de posters */
     .grid{grid-template-columns:repeat(auto-fill,minmax(60px,1fr)); gap:8px;}
     .grid .card{border-radius:9px;}
@@ -549,7 +560,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-18</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.04-19</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
