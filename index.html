@@ -339,6 +339,28 @@
   .genre-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
   .rewatch-pill{color:var(--accent); font-size:11px; font-weight:700;}
 
+  /* ---------- Statistiques ---------- */
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:8px;}
+  .stat-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .stat-num{
+    font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:26px;
+    color:var(--accent); line-height:1.1; letter-spacing:-.01em;
+  }
+  .stat-sub{font-size:13px; color:var(--text); margin-top:2px;}
+  .stat-lbl{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .bar-row{display:flex; align-items:center; gap:12px; font-size:13px; margin-bottom:9px;}
+  .bar-row .bar-name{width:150px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .bar-row .bar-track{flex:1; height:9px; background:var(--surface2); border-radius:99px; overflow:hidden;}
+  .bar-row .bar-fill{height:100%; background:var(--accent); border-radius:99px;}
+  .bar-row .bar-val{width:52px; text-align:right; color:var(--muted); font-size:12px; flex-shrink:0;}
+  .rw-pill{
+    display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700;
+    color:var(--accent);
+  }
+
   /* ---------- Listes ---------- */
   .list-card{
     background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
@@ -582,7 +604,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-26</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.05-27</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -684,8 +706,8 @@ const extraCache = {};
 const discoverCache = {};     // {tv:{...}, movie:{...}}
 
 const TABS = {
-  series: [["library","Mes séries"],["watching","En cours"],["agenda","Agenda"],["discover","Découvrir"],["lists","Listes"]],
-  movies: [["library","Mes films"],["agenda","Agenda"],["discover","Découvrir"],["lists","Listes"]]
+  series: [["library","Mes séries"],["watching","En cours"],["agenda","Agenda"],["discover","Découvrir"],["lists","Listes"],["stats","Stats"]],
+  movies: [["library","Mes films"],["agenda","Agenda"],["discover","Découvrir"],["lists","Listes"],["stats","Stats"]]
 };
 
 async function loadState(){
@@ -1043,19 +1065,25 @@ function epCode(nx){ return `S${String(nx.season).padStart(2,"0")}E${String(nx.e
 /* ---------- Backfill des genres (anciens éléments) ---------- */
 async function backfillGenres(){
   const missing = [
-    ...Object.values(state.shows).filter(x => !x.genres).map(x => ({type:"tv", obj:x})),
-    ...Object.values(state.movies).filter(x => !x.genres).map(x => ({type:"movie", obj:x}))
+    ...Object.values(state.shows).filter(x => !x.genres || x.epRuntime === undefined).map(x => ({type:"tv", obj:x})),
+    ...Object.values(state.movies).filter(x => !x.genres || x.runtime === undefined).map(x => ({type:"movie", obj:x}))
   ];
   if (!missing.length) return;
   for (const {type, obj} of missing){
     try{
       const d = await tmdb(`/${type}/${obj.id}`);
       obj.genres = (d.genres || []).map(g => g.name);
-    }catch(e){ obj.genres = []; }
+      if (type === "tv") obj.epRuntime = d.episode_run_time?.[0] || d.last_episode_to_air?.runtime || null;
+      else obj.runtime = d.runtime || null;
+    }catch(e){
+      if (!obj.genres) obj.genres = [];
+      if (type === "tv" && obj.epRuntime === undefined) obj.epRuntime = null;
+      if (type === "movie" && obj.runtime === undefined) obj.runtime = null;
+    }
     await new Promise(r => setTimeout(r, 80));
   }
   saveState();
-  if (currentTab === "library") render();
+  if (currentTab === "library" || currentTab === "stats") render();
 }
 
 /* ---------- Thème (sombre / clair / auto) ---------- */
@@ -1098,6 +1126,7 @@ function setTab(tab){
 }
 const svgIcon = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const TAB_ICONS = {
+  stats: svgIcon('<path d="M5 20v-8M12 20V5M19 20v-11"/>'),
   library: svgIcon('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>'),
   watching: svgIcon('<circle cx="12" cy="12" r="8.5"/><path d="M10 8.8v6.4l5.4-3.2z"/>'),
   agenda: svgIcon('<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>'),
@@ -1145,6 +1174,7 @@ function render(){
   else if (currentTab === "agenda"){ renderAgenda(lib); }
   else if (currentTab === "discover"){ renderDiscover(lib); }
   else if (currentTab === "lists"){ renderLists(lib); }
+  else if (currentTab === "stats"){ renderStats(lib); }
 }
 /* ---------- Tris & filtres de bibliothèque ---------- */
 const viewOpts = {
@@ -1268,7 +1298,7 @@ function showCard(s){
     ${s.favorite ? `<span class="fav-dot">❤️</span>` : ""}
     <div class="progress"><div style="width:${p.pct}%"></div></div>
     <div class="meta"><div class="title">${esc(s.name)}</div>
-    <div class="sub">${year(s.date)} ${starsHTML(s.rating)}</div></div>
+    <div class="sub">${year(s.date)} ${starsHTML(s.rating)}${(s.rewatches||0) ? ` <span class="rw-pill">🔁×${s.rewatches}</span>` : ""}</div></div>
   </button>`;
 }
 function movieCard(m){
@@ -1277,7 +1307,7 @@ function movieCard(m){
     ${m.watched ? `<span class="badge done">✓ Vu</span>` : ""}
     ${m.favorite ? `<span class="fav-dot">❤️</span>` : ""}
     <div class="meta"><div class="title">${esc(m.title)}</div>
-    <div class="sub">${year(m.date)} ${starsHTML(m.rating)}</div></div>
+    <div class="sub">${year(m.date)} ${starsHTML(m.rating)}${(m.watchCount||0) > 1 ? ` <span class="rw-pill">🔁×${m.watchCount}</span>` : ""}</div></div>
   </button>`;
 }
 
@@ -1296,7 +1326,7 @@ function renderWatching(lib){
       return `<div class="agenda-row" onclick="openShow(${s.id})">
         ${posterOrFallback(s.poster, s.name, IMG_SM)}
         <div class="info">
-          <div class="show">${esc(s.name)}</div>
+          <div class="show">${esc(s.name)}${(s.rewatches||0) ? ` <span class="rw-pill">🔁 visionnage n°${s.rewatches + 1}</span>` : ""}</div>
           <div class="ep">${nx
             ? `À voir : <strong style="color:var(--accent);">${epCode(nx)}</strong> · reste ${p.total - p.seen} ép.`
             : `${p.seen}/${p.total} ép.`}</div>
@@ -1324,6 +1354,7 @@ async function refreshShowDetails(show, force=false){
     show.tmdbStatus = d.status;
     show.nextEp = d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null;
     show.lastEp = d.last_episode_to_air ? pickEp(d.last_episode_to_air) : null;
+    show.epRuntime = d.episode_run_time?.[0] || d.last_episode_to_air?.runtime || show.epRuntime || null;
     show.seasons = buildSeasons(d);
     show.genres = (d.genres||[]).map(g=>g.name);
     show.detailsAt = Date.now();
@@ -1755,6 +1786,7 @@ async function addShow(id){
     tmdbStatus: d.status,
     nextEp: d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null,
     lastEp: d.last_episode_to_air ? pickEp(d.last_episode_to_air) : null,
+    epRuntime: d.episode_run_time?.[0] || d.last_episode_to_air?.runtime || null,
     detailsAt: Date.now(),
     genres: (d.genres||[]).map(g=>g.name),
     userStatus:null, rating:0, favorite:false, review:"", rewatches:0
@@ -1767,7 +1799,7 @@ async function addMovie(id, watched=false){
   delete state.deleted["movie:" + id];
   const d = await tmdb(`/movie/${id}`);
   state.movies[id] = {
-    id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview,
+    id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview, runtime:d.runtime||null,
     watched, watchedAt: watched ? Date.now() : null, addedAt:Date.now(),
     genres:(d.genres||[]).map(g=>g.name), watchCount: watched ? 1 : 0,
     rating:0, favorite:false, review:""
@@ -1865,6 +1897,92 @@ window.addToList = function(listId, type, id){
 };
 window.closePicker = function(){ $("#picker").classList.remove("open"); };
 $("#picker").addEventListener("click", e => { if (e.target === e.currentTarget) closePicker(); });
+
+/* ---------- Statistiques ---------- */
+function fmtDuration(minutes){
+  if (!minutes) return "0 min";
+  const d = Math.floor(minutes / 1440), h = Math.floor((minutes % 1440) / 60), m = Math.round(minutes % 60);
+  if (d > 0) return `${d} j ${h} h`;
+  if (h > 0) return `${h} h ${m ? m + " min" : ""}`.trim();
+  return `${m} min`;
+}
+function statCard(num, sub, lbl){
+  return `<div class="stat-card"><div class="stat-num">${num}</div>
+    ${sub ? `<div class="stat-sub">${sub}</div>` : ""}
+    ${lbl ? `<div class="stat-lbl">${lbl}</div>` : ""}</div>`;
+}
+function barChart(entries, unit){
+  if (!entries.length) return `<p style="color:var(--muted); font-size:13px;">Pas encore assez de données.</p>`;
+  const max = Math.max(...entries.map(e => e[1]));
+  return entries.map(([name, val]) =>
+    `<div class="bar-row">
+      <span class="bar-name">${esc(name)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${max ? Math.round(val/max*100) : 0}%"></span></span>
+      <span class="bar-val">${val}${unit || ""}</span>
+    </div>`).join("");
+}
+function renderStats(lib){
+  if (mode === "series"){
+    const shows = Object.values(state.shows);
+    if (!shows.length){ lib.innerHTML = `<div class="empty"><strong>Pas encore de stats</strong>Ajoute des séries et coche des épisodes !</div>`; return; }
+    let eps = 0, minutes = 0, rewatches = 0;
+    const genreEp = {};
+    let topShow = null, topEps = 0, totalRated = 0, sumRating = 0;
+    for (const s of shows){
+      const seen = Object.keys(s.watched || {}).filter(k => !k.startsWith("s0e")).length;
+      const rt = s.epRuntime || 35; // repli raisonnable si durée inconnue
+      const fullRuns = (s.rewatches || 0) * showProgress(s).full;
+      eps += seen;
+      rewatches += s.rewatches || 0;
+      minutes += (seen + fullRuns) * rt;
+      for (const g of s.genres || []) genreEp[g] = (genreEp[g] || 0) + seen;
+      if (seen > topEps){ topEps = seen; topShow = s; }
+      if (s.rating){ totalRated++; sumRating += s.rating; }
+    }
+    const completed = shows.filter(s => effectiveStatus(s) === "completed").length;
+    const topGenres = Object.entries(genreEp).filter(([,v]) => v > 0).sort((a,b)=> b[1]-a[1]).slice(0, 8);
+    lib.innerHTML = `
+      <div class="section-label">Mes chiffres séries</div>
+      <div class="stat-grid">
+        ${statCard(eps.toLocaleString("fr-FR"), "épisodes vus", "re-visionnages inclus dans le temps")}
+        ${statCard(fmtDuration(minutes), "devant des séries", "≈ estimation sur la durée des épisodes")}
+        ${statCard(shows.length, "séries suivies", `${completed} terminées`)}
+        ${statCard("🔁 " + rewatches, "re-visionnages complets", "")}
+        ${totalRated ? statCard("★ " + (sumRating/totalRated).toFixed(1), "note moyenne", `${totalRated} série(s) notée(s)`) : ""}
+        ${topShow ? statCard(esc(topShow.name), `${topEps} épisodes vus`, "ta série la plus regardée") : ""}
+      </div>
+      <div class="section-label">Genres les plus regardés <span class="count-pill">en épisodes</span></div>
+      ${barChart(topGenres, "")}`;
+  } else {
+    const movies = Object.values(state.movies);
+    if (!movies.length){ lib.innerHTML = `<div class="empty"><strong>Pas encore de stats</strong>Ajoute des films et marque-les vus !</div>`; return; }
+    const seen = movies.filter(m => m.watched);
+    let minutes = 0, rewatches = 0, totalRated = 0, sumRating = 0;
+    const genreCount = {}, decades = {};
+    for (const m of seen){
+      const rt = m.runtime || 105;
+      minutes += rt * Math.max(1, m.watchCount || 1);
+      rewatches += Math.max(0, (m.watchCount || 1) - 1);
+      for (const g of m.genres || []) genreCount[g] = (genreCount[g] || 0) + 1;
+      if (m.date){ const dec = m.date.slice(0,3) + "0s"; decades[dec] = (decades[dec] || 0) + 1; }
+      if (m.rating){ totalRated++; sumRating += m.rating; }
+    }
+    const topGenres = Object.entries(genreCount).sort((a,b)=> b[1]-a[1]).slice(0, 8);
+    const decadeList = Object.entries(decades).sort((a,b)=> a[0].localeCompare(b[0]));
+    lib.innerHTML = `
+      <div class="section-label">Mes chiffres films</div>
+      <div class="stat-grid">
+        ${statCard(seen.length.toLocaleString("fr-FR"), "films vus", `${movies.length - seen.length} en watchlist`)}
+        ${statCard(fmtDuration(minutes), "devant des films", "re-visionnages inclus")}
+        ${statCard("🔁 " + rewatches, "re-visionnages", "")}
+        ${totalRated ? statCard("★ " + (sumRating/totalRated).toFixed(1), "note moyenne", `${totalRated} film(s) noté(s)`) : ""}
+      </div>
+      <div class="section-label">Genres les plus vus <span class="count-pill">en films</span></div>
+      ${barChart(topGenres, "")}
+      <div class="section-label">Par décennie</div>
+      ${barChart(decadeList, "")}`;
+  }
+}
 
 /* ---------- Blocs communs des fiches ---------- */
 function ratingBlock(type, id, rating){
@@ -2526,6 +2644,7 @@ async function addShowSilent(id){
     seasons: buildSeasons(d), watched:{}, addedAt:Date.now(),
     tmdbStatus:d.status, nextEp: d.next_episode_to_air ? pickEp(d.next_episode_to_air) : null,
     lastEp: d.last_episode_to_air ? pickEp(d.last_episode_to_air) : null,
+    epRuntime: d.episode_run_time?.[0] || d.last_episode_to_air?.runtime || null,
     detailsAt: Date.now(), genres:(d.genres||[]).map(g=>g.name),
     userStatus:null, rating:0, favorite:false, review:"", rewatches:0
   };
@@ -2535,7 +2654,7 @@ async function addMovieSilent(id, watched){
   delete state.deleted["movie:" + id];
   const d = await tmdb(`/movie/${id}`);
   state.movies[id] = {
-    id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview,
+    id, title:d.title, poster:d.poster_path, date:d.release_date, overview:d.overview, runtime:d.runtime||null,
     watched, watchedAt: watched ? Date.now() : null, addedAt:Date.now(),
     genres:(d.genres||[]).map(g=>g.name), watchCount: watched ? 1 : 0,
     rating:0, favorite:false, review:""
