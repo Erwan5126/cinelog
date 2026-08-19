@@ -641,7 +641,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.06-32</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.06-33</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -891,13 +891,13 @@ function mergeStates(primary, secondary){
       if (!out.lists[id]) out.lists[id] = deep(l);
       else {
         const t = out.lists[id];
-        const seen = new Set(t.items.map(it => it.type + ":" + it.id));
+        const seen = new Set(t.items.map(it => it.type + ":" + it.id + ":" + (it.season || 0)));
         for (const it of l.items){
-          const key = it.type + ":" + it.id;
+          const key = it.type + ":" + it.id + ":" + (it.season || 0);
           if (!seen.has(key)){ t.items.push(deep(it)); seen.add(key); }
           else if (it.checked !== undefined){
             // état de la case : le passage le plus récent ([secondary, primary]) écrit en dernier
-            const ex = t.items.find(x => x.type === it.type && x.id === it.id);
+            const ex = t.items.find(x => x.type === it.type && x.id === it.id && (x.season || 0) === (it.season || 0));
             if (ex) ex.checked = it.checked;
           }
         }
@@ -1842,7 +1842,7 @@ function buildSeasons(d){
   const seasons = {};
   for (const s of d.seasons || []){
     if (s.season_number === 0) continue; // on ignore les épisodes spéciaux
-    seasons[s.season_number] = { episode_count: s.episode_count, name: s.name };
+    seasons[s.season_number] = { episode_count: s.episode_count, name: s.name, air_date: s.air_date || null };
   }
   return seasons;
 }
@@ -1908,7 +1908,9 @@ function renderLists(lib){
     // Marathon : films ET séries ensemble, triés par date de sortie
     const dateOf = it => {
       const o = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
-      return (o && o.date) ? o.date : "9999-99-99";
+      if (!o) return "9999-99-99";
+      if (it.season && o.seasons?.[it.season]?.air_date) return o.seasons[it.season].air_date;
+      return o.date || "9999-99-99";
     };
     const items = [...l.items].sort((a,b) =>
       dateOf(a).localeCompare(dateOf(b)) || String(a.id).localeCompare(String(b.id)));
@@ -1930,23 +1932,25 @@ function renderLists(lib){
 function marathonRow(it, listId){
   const obj = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
   if (!obj) return "";
-  const title = obj.name || obj.title;
+  const title = (obj.name || obj.title) + (it.season ? ` — Saison ${it.season}` : "");
   const open = it.type === "tv" ? `openShow(${it.id})` : `openMovie(${it.id})`;
   const icon = it.type === "tv" ? "📺" : "🎬";
+  const date = (it.season && obj.seasons?.[it.season]?.air_date) || obj.date;
+  const s = it.season || 0;
   return `<div class="mlist-row ${it.checked ? "done" : ""}" onclick="${open}" role="button" tabindex="0">
     <img src="${obj.poster ? IMG_SM + obj.poster : ""}" alt="" loading="lazy">
     <div class="mi">
       <div class="t">${esc(title)}</div>
-      <div class="s">${icon} ${obj.date ? fmtDate(obj.date) : "date inconnue"}</div>
+      <div class="s">${icon} ${date ? fmtDate(date) : "date inconnue"}</div>
     </div>
     <button class="mcheck ${it.checked ? "on" : ""}" title="${it.checked ? "Décocher" : "Marquer comme vu dans ce marathon"}"
-      onclick="event.stopPropagation(); toggleListCheck('${listId}','${it.type}',${it.id})">✓</button>
-    <button class="rmx" title="Retirer de la liste" onclick="event.stopPropagation(); removeFromList('${listId}','${it.type}',${it.id})">✕</button>
+      onclick="event.stopPropagation(); toggleListCheck('${listId}','${it.type}',${it.id},${s})">✓</button>
+    <button class="rmx" title="Retirer de la liste" onclick="event.stopPropagation(); removeFromList('${listId}','${it.type}',${it.id},${s})">✕</button>
   </div>`;
 }
-window.toggleListCheck = function(listId, type, id){
+window.toggleListCheck = function(listId, type, id, season){
   const l = state.lists[listId]; if (!l) return;
-  const it = l.items.find(x => x.type === type && x.id === id);
+  const it = l.items.find(x => x.type === type && x.id === id && (x.season || 0) === (season || 0));
   if (!it) return;
   it.checked = !it.checked;
   saveState(); render();
@@ -1980,9 +1984,10 @@ window.deleteList = function(id){
   state.deleted["list:" + id] = Date.now();
   delete state.lists[id]; saveState(); render();
 };
-window.removeFromList = function(listId, type, id){
+window.removeFromList = function(listId, type, id, season){
   const l = state.lists[listId]; if (!l) return;
-  l.items = l.items.filter(it => !(it.type === type && it.id === id));
+  l.items = l.items.filter(it =>
+    !(it.type === type && it.id === id && (it.season || 0) === (season || 0)));
   saveState(); render();
 };
 window.openListPicker = function(type, id){
@@ -2001,7 +2006,23 @@ window.openListPicker = function(type, id){
   $("#picker").classList.add("open");
 };
 window.addToList = function(listId, type, id){
-  state.lists[listId].items.push({type, id});
+  const l = state.lists[listId]; if (!l) return;
+  const has = (season) => l.items.some(it =>
+    it.type === type && it.id === id && (it.season || 0) === (season || 0));
+  if (type === "tv"){
+    const show = state.shows[id];
+    const nums = Object.keys(show?.seasons || {}).map(Number).sort((a,b)=>a-b);
+    if (nums.length > 1){
+      // Marathon : chaque saison devient une ligne cochable, datée de sa diffusion
+      let added = 0;
+      for (const n of nums) if (!has(n)){ l.items.push({type, id, season:n}); added++; }
+      saveState(); closePicker();
+      toast(added ? `${added} saison${added>1?"s":""} ajoutée${added>1?"s":""} à la liste` : "Déjà dans la liste");
+      return;
+    }
+  }
+  if (has(0)){ closePicker(); toast("Déjà dans la liste"); return; }
+  l.items.push({type, id});
   saveState(); closePicker(); toast("Ajouté à la liste");
 };
 window.closePicker = function(){ $("#picker").classList.remove("open"); };
@@ -2803,6 +2824,7 @@ $("#setup-key").addEventListener("keydown", e => { if (e.key === "Enter") $("#se
     if (s.rating === undefined) Object.assign(s, {userStatus:null, rating:0, favorite:false, review:"", tmdbStatus:null, nextEp:null, detailsAt:0});
     if (s.rewatches === undefined) s.rewatches = 0;
     if (s.lastEp === undefined) s.detailsAt = 0; // force la récupération du dernier épisode diffusé (progression au diffusé)
+    if (Object.values(s.seasons || {}).some(x => x.air_date === undefined)) s.detailsAt = 0; // dates de saisons (listes marathon)
     if (s.seasons && s.seasons["0"]) delete s.seasons["0"]; // plus de "Spéciaux"
     for (const k of Object.keys(s.watched || {})) if (k.startsWith("s0e")) delete s.watched[k];
   }
