@@ -351,6 +351,31 @@
   .genre-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
   .rewatch-pill{color:var(--accent); font-size:11px; font-weight:700;}
 
+  /* ---------- Listes marathon ---------- */
+  .mlist{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
+  .mlist-row{
+    display:flex; align-items:center; gap:12px;
+    background:var(--surface2); border:1px solid var(--line);
+    border-radius:12px; padding:8px 12px; cursor:pointer;
+  }
+  .mlist-row img{width:42px; height:60px; object-fit:cover; border-radius:8px; flex-shrink:0; background:var(--surface);}
+  .mlist-row .mi{flex:1; min-width:0;}
+  .mlist-row .mi .t{font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mlist-row .mi .s{font-size:12px; color:var(--muted); margin-top:2px;}
+  .mlist-row.done{opacity:.72;}
+  .mlist-row.done .mi .t{text-decoration:line-through; color:var(--muted);}
+  .mcheck{
+    width:32px; height:32px; border-radius:10px; border:2px solid var(--line);
+    background:transparent; color:transparent; font-size:16px; line-height:1;
+    display:grid; place-items:center; flex-shrink:0; cursor:pointer; transition:all .15s;
+  }
+  .mcheck.on{background:var(--accent); border-color:var(--accent); color:#0e0f13;}
+  .mlist-row .rmx{border:none; background:none; color:var(--muted); font-size:13px; padding:4px 6px; cursor:pointer; flex-shrink:0; border-radius:8px;}
+  .mlist-row .rmx:hover{color:var(--danger);}
+  .list-progress{height:6px; background:var(--surface2); border-radius:99px; overflow:hidden; margin-top:10px;}
+  .list-progress i{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .25s;}
+  .uncheck-all{border:none; background:none; color:var(--muted); font-size:12px; cursor:pointer; text-decoration:underline; padding:2px 4px;}
+
   /* ---------- Statistiques ---------- */
   .stat-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:8px;}
   .stat-card{
@@ -616,7 +641,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.06-31</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.06-32</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -867,7 +892,15 @@ function mergeStates(primary, secondary){
       else {
         const t = out.lists[id];
         const seen = new Set(t.items.map(it => it.type + ":" + it.id));
-        for (const it of l.items) if (!seen.has(it.type + ":" + it.id)){ t.items.push(deep(it)); seen.add(it.type + ":" + it.id); }
+        for (const it of l.items){
+          const key = it.type + ":" + it.id;
+          if (!seen.has(key)){ t.items.push(deep(it)); seen.add(key); }
+          else if (it.checked !== undefined){
+            // état de la case : le passage le plus récent ([secondary, primary]) écrit en dernier
+            const ex = t.items.find(x => x.type === it.type && x.id === it.id);
+            if (ex) ex.checked = it.checked;
+          }
+        }
         t.name = l.name || t.name;
       }
     }
@@ -1851,14 +1884,11 @@ async function addMovie(id, watched=false){
 /* ---------- Listes (scopées par mode) ---------- */
 function renderLists(lib){
   const type = kindOf();
-  const other = type === "tv" ? "movie" : "tv";
-  const otherLabel = type === "tv" ? "film(s)" : "série(s)";
   const pool = type === "tv" ? state.shows : state.movies;
-
   const favs = Object.values(pool).filter(x => x.favorite).map(x => ({type, id:x.id}));
 
   let html = `<div class="new-list">
-    <input type="text" id="new-list-name" placeholder="Nouvelle liste (ex : ${type==="tv"?"Séries à binge, Pépites SF":"Films de Noël, À voir avec Léa"}…)">
+    <input type="text" id="new-list-name" placeholder="Nouvelle liste (ex : Marathon Marvel, Films de Noël, Saga Star Wars…)">
     <button class="btn" onclick="createList()">Créer</button>
   </div>`;
 
@@ -1868,26 +1898,65 @@ function renderLists(lib){
       <div class="list-items">${favs.map(it => listItemCard(it, null)).join("")}</div>
     </div>`;
   }
+
   const lists = Object.values(state.lists).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
   if (!lists.length && !favs.length){
-    html += `<div class="empty"><strong>Aucune liste</strong>Crée ta première liste ci-dessus, puis ajoute des titres depuis leur fiche (bouton « + Liste »).</div>`;
+    html += `<div class="empty"><strong>Aucune liste</strong>Crée ta première liste ci-dessus, puis ajoute films et séries depuis leur fiche (icône liste). Idéal pour un marathon : tout est trié par date de sortie, avec une case à cocher par titre.</div>`;
   }
+
   html += lists.map(l => {
-    const visible = l.items.filter(it => it.type === type);
-    const hiddenCount = l.items.length - visible.length;
+    // Marathon : films ET séries ensemble, triés par date de sortie
+    const dateOf = it => {
+      const o = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
+      return (o && o.date) ? o.date : "9999-99-99";
+    };
+    const items = [...l.items].sort((a,b) =>
+      dateOf(a).localeCompare(dateOf(b)) || String(a.id).localeCompare(String(b.id)));
+    const done = items.filter(it => it.checked).length;
+    const pct = items.length ? Math.round(done / items.length * 100) : 0;
     return `<div class="list-card">
       <div class="list-head">
-        <h3>${esc(l.name)} <span class="count-pill">${visible.length}</span></h3>
-        ${hiddenCount ? `<span class="hidden-note">+ ${hiddenCount} ${otherLabel} de l'autre côté ⇄</span>` : ""}
+        <h3>${esc(l.name)} <span class="count-pill">${done}/${items.length}</span></h3>
+        ${done ? `<button class="uncheck-all" onclick="uncheckAllList('${l.id}')">tout décocher</button>` : ""}
         <button class="del" onclick="deleteList('${l.id}')">Supprimer</button>
       </div>
-      ${visible.length
-        ? `<div class="list-items">${visible.map(it => listItemCard(it, l.id)).join("")}</div>`
-        : `<p style="color:var(--muted); font-size:13px; margin-top:10px;">Rien côté ${type==="tv"?"séries":"films"} dans cette liste pour l'instant.</p>`}
+      ${items.length ? `<div class="list-progress"><i style="width:${pct}%"></i></div>
+        <div class="mlist">${items.map(it => marathonRow(it, l.id)).join("")}</div>`
+        : `<p style="color:var(--muted); font-size:13px; margin-top:10px;">Liste vide — ajoute des titres depuis leurs fiches.</p>`}
     </div>`;
   }).join("");
   lib.innerHTML = html;
 }
+function marathonRow(it, listId){
+  const obj = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
+  if (!obj) return "";
+  const title = obj.name || obj.title;
+  const open = it.type === "tv" ? `openShow(${it.id})` : `openMovie(${it.id})`;
+  const icon = it.type === "tv" ? "📺" : "🎬";
+  return `<div class="mlist-row ${it.checked ? "done" : ""}" onclick="${open}" role="button" tabindex="0">
+    <img src="${obj.poster ? IMG_SM + obj.poster : ""}" alt="" loading="lazy">
+    <div class="mi">
+      <div class="t">${esc(title)}</div>
+      <div class="s">${icon} ${obj.date ? fmtDate(obj.date) : "date inconnue"}</div>
+    </div>
+    <button class="mcheck ${it.checked ? "on" : ""}" title="${it.checked ? "Décocher" : "Marquer comme vu dans ce marathon"}"
+      onclick="event.stopPropagation(); toggleListCheck('${listId}','${it.type}',${it.id})">✓</button>
+    <button class="rmx" title="Retirer de la liste" onclick="event.stopPropagation(); removeFromList('${listId}','${it.type}',${it.id})">✕</button>
+  </div>`;
+}
+window.toggleListCheck = function(listId, type, id){
+  const l = state.lists[listId]; if (!l) return;
+  const it = l.items.find(x => x.type === type && x.id === id);
+  if (!it) return;
+  it.checked = !it.checked;
+  saveState(); render();
+};
+window.uncheckAllList = function(listId){
+  const l = state.lists[listId]; if (!l) return;
+  if (!confirm(`Décocher tous les titres de « ${l.name} » ? (pour recommencer le marathon)`)) return;
+  for (const it of l.items) it.checked = false;
+  saveState(); render();
+};
 function listItemCard(it, listId){
   const obj = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
   if (!obj) return "";
