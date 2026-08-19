@@ -362,8 +362,7 @@
   .mlist-row .mi{flex:1; min-width:0;}
   .mlist-row .mi .t{font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .mlist-row .mi .s{font-size:12px; color:var(--muted); margin-top:2px;}
-  .mlist-row.done{opacity:.72;}
-  .mlist-row.done .mi .t{text-decoration:line-through; color:var(--muted);}
+  .mlist-row.done{opacity:.75;} /* la coche suffit : plus de titre barré */
   .mcheck{
     width:32px; height:32px; border-radius:10px; border:2px solid var(--line);
     background:transparent; color:transparent; font-size:16px; line-height:1;
@@ -375,6 +374,16 @@
   .list-progress{height:6px; background:var(--surface2); border-radius:99px; overflow:hidden; margin-top:10px;}
   .list-progress i{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .25s;}
   .uncheck-all{border:none; background:none; color:var(--muted); font-size:12px; cursor:pointer; text-decoration:underline; padding:2px 4px;}
+  .list-summary{cursor:pointer; transition:border-color .15s;}
+  .list-summary:hover{border-color:var(--accent);}
+  .list-summary .chev{margin-left:auto; color:var(--muted); font-size:20px; line-height:1;}
+  .ls-posters{display:flex; gap:7px; margin-top:12px;}
+  .ls-posters img{width:36px; height:50px; object-fit:cover; border-radius:6px; background:var(--surface2);}
+  .ls-posters .more{
+    width:36px; height:50px; border-radius:6px; background:var(--surface2);
+    display:grid; place-items:center; font-size:11px; color:var(--muted); font-weight:700;
+  }
+  .back-btn{margin-bottom:14px;}
 
   /* ---------- Statistiques ---------- */
   .stat-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:8px;}
@@ -641,7 +650,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.08.19-35</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.08.19-36</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1900,7 +1909,51 @@ async function addMovie(id, watched=false){
 }
 
 /* ---------- Listes (scopées par mode) ---------- */
+let openListId = null;
+window.openList = function(id){ openListId = id; render(); };
+window.closeListDetail = function(){ openListId = null; render(); };
+function listComputed(l){
+  const dateOf = it => {
+    const o = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
+    if (!o) return "9999-99-99";
+    if (it.season && o.seasons?.[it.season]?.air_date) return o.seasons[it.season].air_date;
+    return o.date || "9999-99-99";
+  };
+  // Une saison sans date de diffusion ou sans épisode reste masquée
+  // (elle apparaîtra d'elle-même quand TMDB publiera ses infos)
+  const ready = it => {
+    if (it.type !== "tv" || !it.season) return true;
+    const s = state.shows[it.id]?.seasons?.[it.season];
+    return !!(s && s.air_date && (s.episode_count || 0) > 0);
+  };
+  const items = [...l.items].filter(ready).sort((a,b) =>
+    dateOf(a).localeCompare(dateOf(b)) || String(a.id).localeCompare(String(b.id)));
+  const done = items.filter(it => it.checked).length;
+  const pct = items.length ? Math.round(done / items.length * 100) : 0;
+  return { items, done, pct };
+}
 function renderLists(lib){
+  // ----- Vue détail : une liste ouverte en plein -----
+  if (openListId && state.lists[openListId]){
+    const l = state.lists[openListId];
+    const { items, done, pct } = listComputed(l);
+    lib.innerHTML = `
+      <button class="btn ghost back-btn" onclick="closeListDetail()">← Mes listes</button>
+      <div class="list-card">
+        <div class="list-head">
+          <h3>${esc(l.name)} <span class="count-pill">${done}/${items.length}</span></h3>
+          ${done ? `<button class="uncheck-all" onclick="uncheckAllList('${l.id}')">tout décocher</button>` : ""}
+          <button class="del" onclick="deleteList('${l.id}')">Supprimer</button>
+        </div>
+        ${items.length ? `<div class="list-progress"><i style="width:${pct}%"></i></div>
+          <div class="mlist">${items.map(it => marathonRow(it, l.id)).join("")}</div>`
+          : `<p style="color:var(--muted); font-size:13px; margin-top:10px;">Liste vide — ajoute des titres depuis leurs fiches.</p>`}
+      </div>`;
+    return;
+  }
+  openListId = null;
+
+  // ----- Vue d'ensemble : toutes les listes en aperçu -----
   const type = kindOf();
   const pool = type === "tv" ? state.shows : state.movies;
   const favs = Object.values(pool).filter(x => x.favorite).map(x => ({type, id:x.id}));
@@ -1923,33 +1976,19 @@ function renderLists(lib){
   }
 
   html += lists.map(l => {
-    // Marathon : films ET séries ensemble, triés par date de sortie
-    const dateOf = it => {
+    const { items, done, pct } = listComputed(l);
+    const posters = items.slice(0, 6).map(it => {
       const o = it.type === "tv" ? state.shows[it.id] : state.movies[it.id];
-      if (!o) return "9999-99-99";
-      if (it.season && o.seasons?.[it.season]?.air_date) return o.seasons[it.season].air_date;
-      return o.date || "9999-99-99";
-    };
-    // Une saison sans date de diffusion ou sans épisode reste masquée
-    // (elle apparaîtra d'elle-même quand TMDB publiera ses infos)
-    const ready = it => {
-      if (it.type !== "tv" || !it.season) return true;
-      const s = state.shows[it.id]?.seasons?.[it.season];
-      return !!(s && s.air_date && (s.episode_count || 0) > 0);
-    };
-    const items = [...l.items].filter(ready).sort((a,b) =>
-      dateOf(a).localeCompare(dateOf(b)) || String(a.id).localeCompare(String(b.id)));
-    const done = items.filter(it => it.checked).length;
-    const pct = items.length ? Math.round(done / items.length * 100) : 0;
-    return `<div class="list-card">
+      return o?.poster ? `<img src="${IMG_SM + o.poster}" alt="" loading="lazy">` : "";
+    }).join("");
+    const more = items.length > 6 ? `<span class="more">+${items.length - 6}</span>` : "";
+    return `<div class="list-card list-summary" onclick="openList('${l.id}')" role="button" tabindex="0">
       <div class="list-head">
         <h3>${esc(l.name)} <span class="count-pill">${done}/${items.length}</span></h3>
-        ${done ? `<button class="uncheck-all" onclick="uncheckAllList('${l.id}')">tout décocher</button>` : ""}
-        <button class="del" onclick="deleteList('${l.id}')">Supprimer</button>
+        <span class="chev">›</span>
       </div>
       ${items.length ? `<div class="list-progress"><i style="width:${pct}%"></i></div>
-        <div class="mlist">${items.map(it => marathonRow(it, l.id)).join("")}</div>`
-        : `<p style="color:var(--muted); font-size:13px; margin-top:10px;">Liste vide — ajoute des titres depuis leurs fiches.</p>`}
+        <div class="ls-posters">${posters}${more}</div>` : `<p style="color:var(--muted); font-size:13px; margin-top:8px;">Liste vide</p>`}
     </div>`;
   }).join("");
   lib.innerHTML = html;
@@ -2007,7 +2046,9 @@ window.createList = function(){
 window.deleteList = function(id){
   if (!confirm(`Supprimer la liste « ${state.lists[id]?.name} » ?`)) return;
   state.deleted["list:" + id] = Date.now();
-  delete state.lists[id]; saveState(); render();
+  delete state.lists[id];
+  if (openListId === id) openListId = null;
+  saveState(); render();
 };
 window.removeFromList = function(listId, type, id, season){
   const l = state.lists[listId]; if (!l) return;
