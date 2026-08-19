@@ -354,6 +354,7 @@
   /* ---------- Listes marathon ---------- */
   .mlist{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
   .mlist-row{
+    scroll-margin-top:96px;
     display:flex; align-items:center; gap:12px;
     background:var(--surface2); border:1px solid var(--line);
     border-radius:12px; padding:8px 12px; cursor:pointer;
@@ -547,6 +548,7 @@
     /* Exception : dans la recherche, on a besoin des titres */
     #search-results.grid{grid-template-columns:repeat(auto-fill,minmax(106px,1fr)); gap:12px;}
     #search-results .card .meta{display:block;}
+    .mlist-row{scroll-margin-top:12px;}
     #search-results .badge{font-size:11px; padding:3px 8px;}
     #search-results .result-add{width:26px; height:26px; font-size:16px; top:8px; left:8px;}
     #search-results .result-seen{width:26px; height:26px; font-size:13px; top:40px; left:8px;}
@@ -650,7 +652,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.08.19-36</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.08.19-37</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -1910,7 +1912,14 @@ async function addMovie(id, watched=false){
 
 /* ---------- Listes (scopées par mode) ---------- */
 let openListId = null;
-window.openList = function(id){ openListId = id; render(); };
+window.openList = function(id){
+  openListId = id; render();
+  // Reprendre le marathon là où il en est : premier titre non coché à l'écran
+  requestAnimationFrame(() => {
+    const row = document.querySelector(".mlist-row:not(.done)");
+    if (row && document.querySelector(".mlist-row.done")) row.scrollIntoView({ block:"start", behavior:"auto" });
+  });
+};
 window.closeListDetail = function(){ openListId = null; render(); };
 function listComputed(l){
   const dateOf = it => {
