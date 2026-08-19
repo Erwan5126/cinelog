@@ -641,7 +641,7 @@
     </div>
 
     <div class="panel hidden" id="settings-panel">
-      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.07.06-33</span></h3>
+      <h3>Réglages <span style="font-size:11px; color:var(--muted); font-weight:400; font-family:'Sora';">— CinéLog v2026.08.19-35</span></h3>
       <p>Ta clé API TMDB (v3). Elle n'est jamais envoyée ailleurs qu'à TMDB.</p>
       <input type="password" id="settings-key" placeholder="Clé API TMDB">
       <div class="modal-actions" style="margin-top:0;">
@@ -792,6 +792,13 @@ async function ghApi(path, opts={}){
 function gistPayload(){
   return JSON.stringify({ updatedAt: state.updatedAt || Date.now(), state }, null, 1);
 }
+// Empreinte du contenu réel (sans l'horodatage) : sert à ne JAMAIS écrire pour rien
+function stateHashOf(s){
+  return JSON.stringify({ apiKey:s.apiKey, shows:s.shows, movies:s.movies, lists:s.lists, deleted:s.deleted });
+}
+let lastSyncedHash = null;
+let lastPushAt = 0;
+const MIN_PUSH_GAP = 15000; // 15 s minimum entre deux écritures GitHub
 async function connectGist(token){
   ghToken = token;
   // Cherche un Gist CinéLog existant, sinon en crée un (secret)
@@ -825,9 +832,19 @@ async function pushGist(){
   // GARDE-FOU : un navigateur au stockage vierge (icône réinstallée, cache vidé…)
   // ne pousse JAMAIS avant d'avoir fusionné une première fois avec le gist.
   if (!hasSyncedOnce()){ return syncNow(false); }
+  const h = stateHashOf(state);
+  if (h === lastSyncedHash) return; // rien de nouveau → zéro écriture (anti-« No changes »)
+  const wait = MIN_PUSH_GAP - (Date.now() - lastPushAt);
+  if (wait > 0){ // trop tôt après la dernière écriture → on repasse plus tard
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(doPush, wait + 200);
+    return;
+  }
   await ghApi("/gists/" + gistId, { method:"PATCH", body: JSON.stringify({
     files: { [GIST_FILE]: { content: gistPayload() } }
   })});
+  lastPushAt = Date.now();
+  lastSyncedHash = h;
 }
 function schedulePush(){
   if (!ghToken || !gistId) return;
@@ -943,6 +960,7 @@ async function syncNow(interactive=false){
       const changed = JSON.stringify(merged) !== JSON.stringify(state);
       state = Object.assign({ apiKey:"", shows:{}, movies:{}, lists:{}, deleted:{} }, merged);
       store.set("cinelog-state", JSON.stringify(state)); // sans re-déclencher de push
+      lastSyncedHash = stateHashOf(remote.state); // le gist contient déjà ceci
       if (changed){ updateNav(); render(); if (interactive) toast("Données fusionnées depuis GitHub ✓"); }
       await pushGist(); // renvoie la version fusionnée
       if (!changed && interactive) toast("Sauvegarde à jour sur GitHub ✓");
@@ -1912,7 +1930,14 @@ function renderLists(lib){
       if (it.season && o.seasons?.[it.season]?.air_date) return o.seasons[it.season].air_date;
       return o.date || "9999-99-99";
     };
-    const items = [...l.items].sort((a,b) =>
+    // Une saison sans date de diffusion ou sans épisode reste masquée
+    // (elle apparaîtra d'elle-même quand TMDB publiera ses infos)
+    const ready = it => {
+      if (it.type !== "tv" || !it.season) return true;
+      const s = state.shows[it.id]?.seasons?.[it.season];
+      return !!(s && s.air_date && (s.episode_count || 0) > 0);
+    };
+    const items = [...l.items].filter(ready).sort((a,b) =>
       dateOf(a).localeCompare(dateOf(b)) || String(a.id).localeCompare(String(b.id)));
     const done = items.filter(it => it.checked).length;
     const pct = items.length ? Math.round(done / items.length * 100) : 0;
